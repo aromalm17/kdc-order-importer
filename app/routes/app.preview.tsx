@@ -25,6 +25,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     orders: job.pending.map((order) => ({
       key: order.deterministicKey,
       source: order.sourceOrderName ?? order.sourceOrderId,
+      imageUrl: order.lineItems.find((line) => line.imageUrl)?.imageUrl ?? null,
       email: order.customerEmail ?? "Missing",
       date: order.processedAt?.toISOString() ?? null,
       items: order.lineItems.length,
@@ -85,10 +86,26 @@ export default function PreviewOrders() {
       <s-section heading="Pending only">
         <div style={{ overflowX: "auto" }}>
           <table className="kdc-table">
-            <thead><tr><th>Source</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th>Reason</th></tr></thead>
+            <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th>Reason</th></tr></thead>
             <tbody>{data.orders.map((order) => (
               <tr key={order.key}>
-                <td>{order.source}</td><td>{order.email}</td>
+                <td>
+                  <div className="kdc-order-source">
+                    {order.imageUrl ? (
+                      <img
+                        className="kdc-order-thumbnail"
+                        src={order.imageUrl}
+                        alt=""
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span className="kdc-order-thumbnail kdc-order-thumbnail--empty">
+                        No image
+                      </span>
+                    )}
+                    <span>{order.source}</span>
+                  </div>
+                </td><td>{order.email}</td>
                 <td>{order.date ? new Date(order.date).toLocaleDateString() : "—"}</td>
                 <td>{order.items}</td><td>₹{order.total.toFixed(2)}</td>
                 <td>{order.blocked ? "Blocked" : "Ready"}</td>

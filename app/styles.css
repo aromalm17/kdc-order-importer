@@ -15,6 +15,32 @@ body {
   font-size: 0.875rem;
 }
 
+.kdc-order-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 132px;
+}
+
+.kdc-order-thumbnail {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  object-fit: cover;
+  border: 1px solid #d8d8d8;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.kdc-order-thumbnail--empty {
+  display: grid;
+  place-items: center;
+  color: #6d7175;
+  font-size: 9px;
+  line-height: 1.1;
+  text-align: center;
+}
+
 .kdc-table th,
 .kdc-table td {
   padding: 12px;
