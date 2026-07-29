@@ -41,6 +41,56 @@ body {
   text-align: center;
 }
 
+.kdc-order-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.kdc-order-detail-field {
+  padding: 12px;
+  border: 1px solid #e1e3e5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.kdc-order-detail-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #616161;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kdc-line-product {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 250px;
+}
+
+.kdc-line-thumbnail {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: cover;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.kdc-line-meta {
+  display: grid;
+  gap: 3px;
+}
+
+.kdc-muted {
+  color: #616161;
+  font-size: 0.8rem;
+}
+
 .kdc-table th,
 .kdc-table td {
   padding: 12px;

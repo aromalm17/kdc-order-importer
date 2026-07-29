@@ -26,6 +26,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       key: order.deterministicKey,
       source: order.sourceOrderName ?? order.sourceOrderId,
       imageUrl: order.lineItems.find((line) => line.imageUrl)?.imageUrl ?? null,
+      detailsHref: `/app/preview/order?job=${encodeURIComponent(job.id)}&order=${encodeURIComponent(order.deterministicKey)}`,
       email: order.customerEmail ?? "Missing",
       date: order.processedAt?.toISOString() ?? null,
       items: order.lineItems.length,
@@ -103,7 +104,7 @@ export default function PreviewOrders() {
                         No image
                       </span>
                     )}
-                    <span>{order.source}</span>
+                    <a href={order.detailsHref}>{order.source}</a>
                   </div>
                 </td><td>{order.email}</td>
                 <td>{order.date ? new Date(order.date).toLocaleDateString() : "—"}</td>
