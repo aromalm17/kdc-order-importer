@@ -37,6 +37,21 @@ The pending-orders screen currently provides:
 - Shopify-compatible client navigation from an order number to its detail
   page.
 
+The Dashboard and New Import routes both show the same workbook uploader and
+the same "What happens next" instructions. They share one server-side upload
+handler, so file validation, parsing, Shopify variant-image verification,
+in-memory job creation, and preview redirection must remain identical on both
+screens.
+
+This shared Dashboard uploader was deployed on 2026-07-30:
+
+- Source commit: local `2ea18e0`; deployment-snapshot commit `98eff04`
+- Render deploy: `dep-d9l6arrl550s73fljqqg`
+- Validation: 62 tests, typecheck, lint, production build, formatting, and
+  `git diff --check` passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
+
 Customer profile lookups for the pending list and detail page are batched and
 cached on the in-memory import job. Moving between the pending list and an
 order-detail page should reuse that cache instead of querying Shopify again for
