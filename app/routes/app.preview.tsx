@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
@@ -21,6 +21,15 @@ export async function loader({ request }: LoaderFunctionArgs) {
       importedOrders: job.importedOrders,
       status: job.status,
       currentMessage: job.currentMessage,
+      readyOrders: job.pending.filter((order) => !hasBlockingIssues(order))
+        .length,
+      missingImageOrders: job.pending.filter((order) =>
+        order.lineItems.some((line) =>
+          line.issues.some((issue) =>
+            ["MISSING_IMAGE", "INVALID_IMAGE_URL"].includes(issue.code),
+          ),
+        ),
+      ).length,
     },
     orders: job.pending.map((order) => ({
       key: order.deterministicKey,
@@ -53,6 +62,8 @@ export default function PreviewOrders() {
   const data = useLoaderData<typeof loader>();
   const importer = useFetcher();
   const revalidator = useRevalidator();
+  const confirmationDialog = useRef<HTMLDialogElement>(null);
+  const [confirmation, setConfirmation] = useState("");
   const importing =
     importer.state !== "idle" || data.job?.status === "RUNNING";
 
@@ -65,16 +76,29 @@ export default function PreviewOrders() {
   if (!data.job) {
     return <s-page heading="Pending orders"><s-empty-state heading="No active import"><s-button href="/app/import/new">Upload workbook</s-button></s-empty-state></s-page>;
   }
+  const confirmationMatches = confirmation.trim().toUpperCase() === "YES";
+  const pendingExcelHref = `/app/api/export-pending-xlsx?job=${encodeURIComponent(data.job.id)}`;
+
+  function startImport() {
+    if (!confirmationMatches || !data.job?.readyOrders) return;
+    confirmationDialog.current?.close();
+    setConfirmation("");
+    importer.submit({ jobId: data.job.id }, { method: "post" });
+  }
+
   return (
     <s-page heading={`Pending — ${data.job.fileName}`}>
-      <importer.Form method="post">
-        <input type="hidden" name="jobId" value={data.job.id} />
-        <s-button slot="primary-action" type="submit" variant="primary" disabled={importing}>
-          {importing ? "Importing…" : "Import ready orders"}
-        </s-button>
-      </importer.Form>
-      <s-button slot="secondary-actions" href={`/app/api/export-errors?job=${data.job.id}`}>Download pending CSV</s-button>
       <s-section heading="Ephemeral import status">
+        <div className="kdc-import-actions">
+          <s-button href={pendingExcelHref}>Download pending Excel</s-button>
+          <s-button
+            variant="primary"
+            disabled={importing || data.job.readyOrders === 0}
+            onClick={() => confirmationDialog.current?.showModal()}
+          >
+            {importing ? "Importing…" : "Import ready orders"}
+          </s-button>
+        </div>
         <s-banner tone={data.job.status === "COMPLETED" ? "success" : "info"}>
           {data.job.currentMessage}. Successfully imported orders are removed immediately.
         </s-banner>
@@ -84,6 +108,66 @@ export default function PreviewOrders() {
           <s-box padding="base" borderWidth="base" borderRadius="base"><s-text>Pending</s-text><s-heading>{data.orders.length}</s-heading></s-box>
         </s-grid>
       </s-section>
+      <dialog
+        ref={confirmationDialog}
+        className="kdc-confirm-dialog"
+        onClose={() => setConfirmation("")}
+      >
+        <div className="kdc-confirm-dialog__header">
+          <div>
+            <span className="kdc-order-detail-label">Final confirmation</span>
+            <h2>Import ready orders?</h2>
+          </div>
+          <button
+            className="kdc-dialog-close"
+            type="button"
+            aria-label="Close confirmation"
+            onClick={() => confirmationDialog.current?.close()}
+          >
+            ×
+          </button>
+        </div>
+        <p>
+          Review the counts and download the pending workbook before importing.
+          Successfully imported orders will be removed from this temporary list.
+        </p>
+        <div className="kdc-confirm-counts">
+          <div className="kdc-confirm-count kdc-confirm-count--ready">
+            <span>Ready orders</span>
+            <strong>{data.job.readyOrders}</strong>
+          </div>
+          <div className="kdc-confirm-count kdc-confirm-count--blocked">
+            <span>Missing/invalid image orders</span>
+            <strong>{data.job.missingImageOrders}</strong>
+          </div>
+          <div className="kdc-confirm-count">
+            <span>Total pending</span>
+            <strong>{data.orders.length}</strong>
+          </div>
+        </div>
+        <label className="kdc-confirm-label" htmlFor="confirm-import">
+          Type <strong>YES</strong> to import {data.job.readyOrders} ready
+          order(s)
+        </label>
+        <input
+          id="confirm-import"
+          className="kdc-text-input"
+          value={confirmation}
+          onChange={(event) => setConfirmation(event.currentTarget.value)}
+          autoComplete="off"
+          placeholder="Type YES"
+        />
+        <div className="kdc-confirm-dialog__actions">
+          <s-button href={pendingExcelHref}>Download pending Excel</s-button>
+          <s-button
+            variant="primary"
+            disabled={!confirmationMatches || data.job.readyOrders === 0}
+            onClick={startImport}
+          >
+            Confirm import
+          </s-button>
+        </div>
+      </dialog>
       <s-section heading="Pending only">
         <div style={{ overflowX: "auto" }}>
           <table className="kdc-table">

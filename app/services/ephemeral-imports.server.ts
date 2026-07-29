@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
+import ExcelJS from "exceljs";
 import type { ParsedOrder, WorkbookParseResult } from "../lib/import-types";
 import { hasBlockingIssues } from "./workbook.server";
 import { createHistoricalOrder } from "./shopify-orders.server";
@@ -154,4 +155,58 @@ export function pendingCsv(job: EphemeralJob) {
     ]),
   );
   return [headers, ...rows].map((row) => row.map(csv).join(",")).join("\n");
+}
+
+export async function pendingWorkbook(job: EphemeralJob) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "KDC Order Import";
+  workbook.created = new Date();
+  const sheet = workbook.addWorksheet("Pending orders", {
+    views: [{ state: "frozen", ySplit: 1 }],
+  });
+  sheet.columns = [
+    { header: "Source order", key: "source", width: 18 },
+    { header: "Customer", key: "customer", width: 24 },
+    { header: "Customer email", key: "email", width: 34 },
+    { header: "Processed at", key: "processedAt", width: 23 },
+    { header: "Product", key: "product", width: 34 },
+    { header: "Variant", key: "variant", width: 22 },
+    { header: "Variant ID", key: "variantId", width: 24 },
+    { header: "SKU", key: "sku", width: 18 },
+    { header: "Quantity", key: "quantity", width: 12 },
+    { header: "Price", key: "price", width: 14 },
+    { header: "Image URL", key: "imageUrl", width: 58 },
+    { header: "Reason", key: "reason", width: 60 },
+  ];
+  sheet.getRow(1).font = { bold: true };
+  sheet.getRow(1).fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFECECEC" },
+  };
+
+  for (const order of job.pending) {
+    for (const line of order.lineItems) {
+      sheet.addRow({
+        source: order.sourceOrderName ?? order.sourceOrderId,
+        customer: order.customerName ?? "",
+        email: order.customerEmail ?? "",
+        processedAt: order.processedAt?.toISOString() ?? "",
+        product: line.productTitle,
+        variant: line.variantTitle ?? "",
+        variantId: line.variantId ?? "",
+        sku: line.sku ?? "",
+        quantity: line.quantity,
+        price: line.unitPrice,
+        imageUrl: line.imageUrl ?? "",
+        reason: [...order.issues, ...line.issues]
+          .map((issue) => issue.message)
+          .filter(Boolean)
+          .join(" | "),
+      });
+    }
+  }
+  sheet.getColumn("price").numFmt = "₹#,##0.00";
+  sheet.autoFilter = { from: "A1", to: "L1" };
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
