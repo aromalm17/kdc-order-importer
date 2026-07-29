@@ -290,11 +290,11 @@ export default function PreviewOrders() {
                       type="checkbox"
                       checked={allReadySelected}
                       disabled={importing || readyOrderKeys.length === 0}
+                      aria-label="Select all ready orders"
                       onChange={(event) =>
                         toggleAllReadyOrders(event.currentTarget.checked)
                       }
                     />
-                    <span>Select all</span>
                   </label>
                 </th>
                 <th>Order</th>
