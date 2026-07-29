@@ -59,4 +59,64 @@ describe("workbook parser", () => {
       'The image URL must start with "https://cdn.shopify.com/s/files/".',
     );
   });
+
+  it("composes customer and address data from Matrixify address columns", async () => {
+    const buffer = await workbookBuffer([
+      [
+        "Name",
+        "Customer: Email",
+        "Shipping: Name",
+        "Shipping: Phone",
+        "Shipping: Address 1",
+        "Shipping: Address 2",
+        "Shipping: City",
+        "Shipping: Province",
+        "Shipping: Zip",
+        "Shipping: Country",
+        "Billing: Name",
+        "Billing: Address 1",
+        "Billing: City",
+        "Billing: Zip",
+        "Billing: Country",
+        "Line: Type",
+        "Line: Title",
+        "Line: Image",
+        "Line: Variant ID",
+        "Line: Price",
+        "Line: Quantity",
+      ],
+      [
+        "#1005",
+        "buyer@example.com",
+        "Aromal M",
+        "+919645260931",
+        "Pavithram",
+        "Kaloliparamba",
+        "Kozhikode",
+        "Kerala",
+        "673016",
+        "India",
+        "Aromal M",
+        "Pavithram",
+        "Kozhikode",
+        "673016",
+        "India",
+        "Line Item",
+        "Car",
+        "https://cdn.shopify.com/s/files/1/a.jpg",
+        "10001",
+        949,
+        1,
+      ],
+    ]);
+    const parsed = await parseWorkbook(buffer);
+    expect(parsed.orders[0].customerName).toBe("Aromal M");
+    expect(parsed.orders[0].customerPhone).toBe("+919645260931");
+    expect(parsed.orders[0].shippingAddress).toBe(
+      "Aromal M, Pavithram, Kaloliparamba, Kozhikode, Kerala, 673016, India",
+    );
+    expect(parsed.orders[0].billingAddress).toBe(
+      "Aromal M, Pavithram, Kozhikode, 673016, India",
+    );
+  });
 });

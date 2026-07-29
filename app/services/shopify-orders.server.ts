@@ -20,6 +20,106 @@ export type ImportableOrder = {
   lineItems: { variantId: string | null; quantity: number }[];
 };
 
+export type CustomerVerificationProfile = {
+  displayName?: string;
+  email?: string;
+  phone?: string;
+  defaultAddress?: string;
+};
+
+function formatMailingAddress(address?: {
+  name?: string | null;
+  company?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  province?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  phone?: string | null;
+} | null) {
+  if (!address) return undefined;
+  const values = [
+    address.name,
+    address.company,
+    address.address1,
+    address.address2,
+    address.city,
+    address.province,
+    address.zip,
+    address.country,
+    address.phone,
+  ].filter((value): value is string => Boolean(value));
+  return values.length ? values.join(", ") : undefined;
+}
+
+export async function findCustomerByEmail(
+  admin: AdminApiContext,
+  email?: string,
+): Promise<CustomerVerificationProfile | null> {
+  if (!email) return null;
+  try {
+    const escaped = email.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+    const response = await admin.graphql(
+      `#graphql
+        query KdcCustomerVerification($query: String!) {
+          customers(first: 1, query: $query) {
+            nodes {
+              displayName
+              defaultEmailAddress { emailAddress }
+              defaultPhoneNumber { phoneNumber }
+              defaultAddress {
+                name
+                company
+                address1
+                address2
+                city
+                province
+                zip
+                country
+                phone
+              }
+            }
+          }
+        }
+      `,
+      { variables: { query: `email:"${escaped}"` } },
+    );
+    const json = (await response.json()) as {
+      data?: {
+        customers?: {
+          nodes?: Array<{
+            displayName?: string;
+            defaultEmailAddress?: { emailAddress?: string } | null;
+            defaultPhoneNumber?: { phoneNumber?: string } | null;
+            defaultAddress?: {
+              name?: string | null;
+              company?: string | null;
+              address1?: string | null;
+              address2?: string | null;
+              city?: string | null;
+              province?: string | null;
+              zip?: string | null;
+              country?: string | null;
+              phone?: string | null;
+            } | null;
+          }>;
+        };
+      };
+    };
+    const customer = json.data?.customers?.nodes?.[0];
+    if (!customer) return null;
+    return {
+      displayName: customer.displayName,
+      email: customer.defaultEmailAddress?.emailAddress,
+      phone: customer.defaultPhoneNumber?.phoneNumber,
+      defaultAddress: formatMailingAddress(customer.defaultAddress),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function financialStatus(status?: string | null) {
   const value = status?.toUpperCase().replace(/\s+/g, "_");
   if (["PAID", "PENDING", "AUTHORIZED", "REFUNDED", "VOIDED"].includes(value ?? "")) {

@@ -64,6 +64,62 @@ body {
   letter-spacing: 0.04em;
 }
 
+.kdc-detail-status-row {
+  margin: 2px 0 8px;
+}
+
+.kdc-detail-total {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 1.35rem;
+}
+
+.kdc-address-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kdc-address-card,
+.kdc-order-note {
+  padding: 16px;
+  border: 1px solid #e1e3e5;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.kdc-address-card p,
+.kdc-order-note p {
+  margin: 6px 0 0;
+  color: #303030;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.kdc-address-source {
+  display: inline-block;
+  margin-top: 8px;
+  color: #616161;
+  font-size: 0.75rem;
+}
+
+.kdc-order-note {
+  margin-top: 12px;
+}
+
+.kdc-detail-summary {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 28px;
+  padding: 18px 12px 4px;
+  font-size: 1rem;
+}
+
+.kdc-detail-summary strong {
+  font-size: 1.25rem;
+}
+
 .kdc-line-product {
   display: flex;
   align-items: center;
@@ -188,6 +244,10 @@ body {
 }
 
 @media (max-width: 560px) {
+  .kdc-address-grid {
+    grid-template-columns: 1fr;
+  }
+
   .kdc-confirm-counts {
     grid-template-columns: 1fr;
   }

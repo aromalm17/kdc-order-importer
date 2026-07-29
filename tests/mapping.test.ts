@@ -25,4 +25,10 @@ describe("column mapping", () => {
     expect(result.orderId).toBeUndefined();
     expect(result.variantId).toBe("Line: Variant ID");
   });
+
+  it("does not use the order Name column as the customer name", () => {
+    const result = detectMapping(["Name", "Customer: Email"]);
+    expect(result.orderName).toBe("Name");
+    expect(result.customerName).toBeUndefined();
+  });
 });

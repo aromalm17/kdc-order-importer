@@ -51,6 +51,58 @@ function firstValue(rows: Record<string, string>[], header?: string) {
   return rows.map((row) => row[header]).find(Boolean);
 }
 
+function firstAliasedValue(
+  rows: Record<string, string>[],
+  candidates: string[],
+) {
+  const available = Object.keys(rows[0] ?? {});
+  const header = available.find((item) =>
+    candidates.some(
+      (candidate) =>
+        item.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() ===
+        candidate.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
+    ),
+  );
+  return firstValue(rows, header);
+}
+
+function composedAddress(
+  rows: Record<string, string>[],
+  prefix: "Shipping" | "Billing",
+) {
+  const values = [
+    firstAliasedValue(rows, [`${prefix}: Name`, `${prefix} Name`]),
+    firstAliasedValue(rows, [`${prefix}: Company`, `${prefix} Company`]),
+    firstAliasedValue(rows, [
+      `${prefix}: Address 1`,
+      `${prefix} Address 1`,
+      `${prefix}: Address1`,
+    ]),
+    firstAliasedValue(rows, [
+      `${prefix}: Address 2`,
+      `${prefix} Address 2`,
+      `${prefix}: Address2`,
+    ]),
+    firstAliasedValue(rows, [`${prefix}: City`, `${prefix} City`]),
+    firstAliasedValue(rows, [
+      `${prefix}: Province`,
+      `${prefix} Province`,
+      `${prefix}: Province Code`,
+    ]),
+    firstAliasedValue(rows, [
+      `${prefix}: Zip`,
+      `${prefix} Zip`,
+      `${prefix}: Postal Code`,
+    ]),
+    firstAliasedValue(rows, [
+      `${prefix}: Country`,
+      `${prefix} Country`,
+      `${prefix}: Country Code`,
+    ]),
+  ].filter((value): value is string => Boolean(value));
+  return values.length ? [...new Set(values)].join(", ") : undefined;
+}
+
 export async function parseWorkbook(
   buffer: Buffer,
   options?: { sheetName?: string; mapping?: ColumnMapping },
@@ -255,14 +307,32 @@ export async function parseWorkbook(
           ),
         ]),
         customerEmail: email,
-        customerName: firstValue(rows, mapping.customerName),
-        customerPhone: firstValue(rows, mapping.customerPhone),
+        customerName:
+          firstValue(rows, mapping.customerName) ??
+          firstAliasedValue(rows, [
+            "Customer: Name",
+            "Customer Name",
+            "Shipping: Name",
+            "Billing: Name",
+          ]),
+        customerPhone:
+          firstValue(rows, mapping.customerPhone) ??
+          firstAliasedValue(rows, [
+            "Customer: Phone",
+            "Customer Phone",
+            "Shipping: Phone",
+            "Billing: Phone",
+          ]),
         processedAt: parseDate(processedRaw),
         currency: firstValue(rows, mapping.currency) || "INR",
         financialStatus: firstValue(rows, mapping.financialStatus),
         fulfillmentStatus: firstValue(rows, mapping.fulfillmentStatus),
-        billingAddress: firstValue(rows, mapping.billingAddress),
-        shippingAddress: firstValue(rows, mapping.shippingAddress),
+        billingAddress:
+          firstValue(rows, mapping.billingAddress) ??
+          composedAddress(rows, "Billing"),
+        shippingAddress:
+          firstValue(rows, mapping.shippingAddress) ??
+          composedAddress(rows, "Shipping"),
         note: firstValue(rows, mapping.notes),
         tags: [
           "KDC-Historical-Import",

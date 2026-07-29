@@ -38,7 +38,7 @@ const aliases: Record<DestinationField, string[]> = {
   orderId: ["source order id", "order id"],
   orderName: ["name", "order name", "order number", "order no"],
   customerEmail: ["customer email", "email", "contact email"],
-  customerName: ["customer name", "name"],
+  customerName: ["customer name", "shipping name", "billing name"],
   customerPhone: ["customer phone", "phone", "shipping phone", "billing phone"],
   processedAt: ["processed at", "created at", "order date", "date"],
   currency: ["currency"],
@@ -87,4 +87,3 @@ export const REQUIRED_DESTINATIONS: DestinationField[] = [
   "quantity",
   "price",
 ];
-
