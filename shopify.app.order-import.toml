@@ -1,7 +1,7 @@
 # Linked production configuration for the existing "Order Import" app.
 client_id = "1eb23742dbeb80cc396227384182b9dc"
 name = "Order Import"
-application_url = "https://keraladiecastcars.lovable.app"
+application_url = "https://kdc-order-importer-web.onrender.com"
 embedded = true
 
 [access_scopes]
@@ -11,9 +11,9 @@ use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://keraladiecastcars.lovable.app/auth/callback",
-  "https://keraladiecastcars.lovable.app/auth/shopify/callback",
-  "https://keraladiecastcars.lovable.app/api/auth/callback"
+  "https://kdc-order-importer-web.onrender.com/auth/callback",
+  "https://kdc-order-importer-web.onrender.com/auth/shopify/callback",
+  "https://kdc-order-importer-web.onrender.com/api/auth/callback"
 ]
 
 [webhooks]
