@@ -93,16 +93,19 @@ export default function PreviewOrders() {
 
   return (
     <s-page heading={`Pending — ${data.job.fileName}`}>
-      <s-section heading="Ephemeral import status">
-        <div className="kdc-import-actions">
-          <s-button href={pendingExcelHref}>Download pending Excel</s-button>
-          <s-button
-            variant="primary"
-            disabled={importing || data.job.readyOrders === 0}
-            onClick={() => confirmationDialog.current?.showModal()}
-          >
-            {importing ? "Importing…" : "Import ready orders"}
-          </s-button>
+      <s-section>
+        <div className="kdc-import-header">
+          <h2>Ephemeral import status</h2>
+          <div className="kdc-import-actions">
+            <s-button href={pendingExcelHref}>Download pending Excel</s-button>
+            <s-button
+              variant="primary"
+              disabled={importing || data.job.readyOrders === 0}
+              onClick={() => confirmationDialog.current?.showModal()}
+            >
+              {importing ? "Importing…" : "Import ready orders"}
+            </s-button>
+          </div>
         </div>
         <s-banner tone={data.job.status === "COMPLETED" ? "success" : "info"}>
           {data.job.currentMessage}. Successfully imported orders are removed immediately.
