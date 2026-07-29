@@ -153,6 +153,19 @@ This feature was deployed successfully on 2026-07-30:
 - Historical customer and fulfillment email notifications remain disabled.
 - Before importing, variants and their images are verified again against
   Shopify to prevent stale preview data from bypassing validation.
+- Every newly imported Shopify order receives exactly one tag: `Order Import`.
+  The import ignores values from the workbook's Tags column so legacy or
+  additional tags do not appear.
+
+The single-tag rule was deployed on 2026-07-30:
+
+- Source commit: local `2e76a4d`; deployment-snapshot commit `7fc6acd`
+- Render deploy: `dep-d9l5eg8ae00c738fil4g`
+- Validation: 57 tests, typecheck, lint, production build, and
+  `git diff --check` passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
+- Existing Shopify orders are not retroactively retagged.
 
 ## Imported order shipping address
 
