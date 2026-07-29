@@ -22,6 +22,18 @@ body {
   min-width: 132px;
 }
 
+.kdc-customer-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+}
+
+.kdc-customer-cell strong {
+  color: #202223;
+  font-weight: 600;
+}
+
 .kdc-order-thumbnail {
   width: 44px;
   height: 44px;

@@ -120,6 +120,68 @@ export async function findCustomerByEmail(
   }
 }
 
+export async function findCustomerNamesByEmail(
+  admin: AdminApiContext,
+  emails: Array<string | undefined>,
+) {
+  const uniqueEmails = [
+    ...new Set(
+      emails
+        .map((email) => email?.trim().toLowerCase())
+        .filter((email): email is string => Boolean(email)),
+    ),
+  ];
+  const customerNames = new Map<string, string>();
+
+  for (let offset = 0; offset < uniqueEmails.length; offset += 50) {
+    const batch = uniqueEmails.slice(offset, offset + 50);
+    const variables = Object.fromEntries(
+      batch.map((email, index) => [
+        `identifier${index}`,
+        { emailAddress: email },
+      ]),
+    );
+    const variableDefinitions = batch
+      .map(
+        (_, index) =>
+          `$identifier${index}: CustomerIdentifierInput!`,
+      )
+      .join(", ");
+    const selections = batch
+      .map(
+        (_, index) => `
+          customer${index}: customerByIdentifier(identifier: $identifier${index}) {
+            displayName
+          }
+        `,
+      )
+      .join("\n");
+
+    try {
+      const response = await admin.graphql(
+        `query KdcCustomerNames(${variableDefinitions}) {
+          ${selections}
+        }`,
+        { variables },
+      );
+      const json = (await response.json()) as {
+        data?: Record<string, { displayName?: string } | null>;
+      };
+
+      batch.forEach((email, index) => {
+        const displayName = json.data?.[`customer${index}`]?.displayName?.trim();
+        if (displayName && displayName.toLowerCase() !== email) {
+          customerNames.set(email, displayName);
+        }
+      });
+    } catch {
+      // Keep the pending-order preview available if customer enrichment fails.
+    }
+  }
+
+  return customerNames;
+}
+
 function financialStatus(status?: string | null) {
   const value = status?.toUpperCase().replace(/\s+/g, "_");
   if (["PAID", "PENDING", "AUTHORIZED", "REFUNDED", "VOIDED"].includes(value ?? "")) {

@@ -11,13 +11,20 @@ import {
   getEphemeralJob,
   importReadyOrders,
 } from "../services/ephemeral-imports.server";
+import { findCustomerNamesByEmail } from "../services/shopify-orders.server";
 import { hasBlockingIssues } from "../services/workbook.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const id = new URL(request.url).searchParams.get("job");
   const job = getEphemeralJob(session.shop, id);
   if (!job) return { job: null, orders: [] };
+  const customerNames = await findCustomerNamesByEmail(
+    admin,
+    job.pending
+      .filter((order) => !order.customerName)
+      .map((order) => order.customerEmail),
+  );
   return {
     job: {
       id: job.id,
@@ -41,6 +48,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
       source: order.sourceOrderName ?? order.sourceOrderId,
       imageUrl: order.lineItems.find((line) => line.imageUrl)?.imageUrl ?? null,
       detailsHref: `/app/preview/order?job=${encodeURIComponent(job.id)}&order=${encodeURIComponent(order.deterministicKey)}`,
+      customerName:
+        order.customerName?.trim() ||
+        customerNames.get(order.customerEmail?.trim().toLowerCase() ?? "") ||
+        null,
       email: order.customerEmail ?? "Missing",
       date: order.processedAt?.toISOString() ?? null,
       items: order.lineItems.length,
@@ -200,7 +211,15 @@ export default function PreviewOrders() {
                       {order.source}
                     </Link>
                   </div>
-                </td><td>{order.email}</td>
+                </td>
+                <td>
+                  <div className="kdc-customer-cell">
+                    {order.customerName ? (
+                      <strong>{order.customerName}</strong>
+                    ) : null}
+                    <span>{order.email}</span>
+                  </div>
+                </td>
                 <td>{order.date ? new Date(order.date).toLocaleDateString() : "—"}</td>
                 <td>{order.items}</td><td>₹{order.total.toFixed(2)}</td>
                 <td>{order.blocked ? "Blocked" : "Ready"}</td>
