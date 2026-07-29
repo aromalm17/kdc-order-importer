@@ -2,25 +2,30 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createHistoricalOrder,
   findCustomerNamesByEmail,
+  verifyVariants,
 } from "../app/services/shopify-orders.server";
 
 describe("Shopify order creation", () => {
   it("submits variant-backed line items and suppresses historical notifications", async () => {
     const graphql = vi.fn().mockResolvedValue({
       json: async () => ({
-        data: { orderCreate: { order: { id: "gid://shopify/Order/1", name: "#1001" }, userErrors: [] } },
+        data: {
+          orderCreate: {
+            order: { id: "gid://shopify/Order/1", name: "#1001" },
+            userErrors: [],
+          },
+        },
       }),
     });
-    const result = await createHistoricalOrder(
-      { graphql } as never,
-      {
-        customerEmail: "buyer@example.com",
-        currency: "INR",
-        financialStatus: "Paid",
-        tags: ["KDC-Historical-Import"],
-        lineItems: [{ variantId: "gid://shopify/ProductVariant/100", quantity: 2 }],
-      },
-    );
+    const result = await createHistoricalOrder({ graphql } as never, {
+      customerEmail: "buyer@example.com",
+      currency: "INR",
+      financialStatus: "Paid",
+      tags: ["KDC-Historical-Import"],
+      lineItems: [
+        { variantId: "gid://shopify/ProductVariant/100", quantity: 2 },
+      ],
+    });
     expect(result.name).toBe("#1001");
     expect(graphql).toHaveBeenCalledWith(
       expect.stringContaining("orderCreate"),
@@ -34,14 +39,11 @@ describe("Shopify order creation", () => {
 
   it("refuses custom or unmapped line items before GraphQL", async () => {
     await expect(
-      createHistoricalOrder(
-        { graphql: vi.fn() } as never,
-        {
-          currency: "INR",
-          tags: [],
-          lineItems: [{ variantId: null, quantity: 1 }],
-        },
-      ),
+      createHistoricalOrder({ graphql: vi.fn() } as never, {
+        currency: "INR",
+        tags: [],
+        lineItems: [{ variantId: null, quantity: 1 }],
+      }),
     ).rejects.toThrow("verified Shopify variant ID");
   });
 
@@ -55,10 +57,11 @@ describe("Shopify order creation", () => {
       }),
     });
 
-    const names = await findCustomerNamesByEmail(
-      { graphql } as never,
-      ["ybv@example.com", "roshan@example.com", "YBV@example.com"],
-    );
+    const names = await findCustomerNamesByEmail({ graphql } as never, [
+      "ybv@example.com",
+      "roshan@example.com",
+      "YBV@example.com",
+    ]);
 
     expect(names.get("ybv@example.com")).toBe("Y B V Kaushik");
     expect(names.get("roshan@example.com")).toBe("Roshan Pradeep");
@@ -72,5 +75,141 @@ describe("Shopify order creation", () => {
         },
       },
     );
+  });
+
+  it("returns only images associated with the exact Shopify variant", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          nodes: [
+            {
+              id: "gid://shopify/ProductVariant/100",
+              title: "Black",
+              product: { title: "Nissan Skyline R34" },
+              media: {
+                nodes: [
+                  {
+                    __typename: "MediaImage",
+                    status: "READY",
+                    image: {
+                      url: "https://cdn.shopify.com/s/files/1/black.jpg?v=2",
+                    },
+                  },
+                  {
+                    __typename: "MediaImage",
+                    status: "READY",
+                    image: {
+                      url: "https://cdn.shopify.com/s/files/1/black-side.jpg?v=3",
+                    },
+                  },
+                ],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          ],
+        },
+      }),
+    });
+
+    const variants = await verifyVariants({ graphql } as never, ["100"]);
+
+    expect(variants.get("100")).toEqual({
+      title: "Nissan Skyline R34 — Black",
+      imageUrls: [
+        "https://cdn.shopify.com/s/files/1/black.jpg?v=2",
+        "https://cdn.shopify.com/s/files/1/black-side.jpg?v=3",
+      ],
+      hasUnreadyImage: false,
+    });
+    const query = graphql.mock.calls[0][0] as string;
+    expect(query).toContain("media(first: 50)");
+    expect(query).not.toContain("featuredMedia");
+  });
+
+  it("keeps an existing variant with no assigned image distinct from a missing variant", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          nodes: [
+            {
+              id: "gid://shopify/ProductVariant/100",
+              title: "Default Title",
+              product: { title: "Car" },
+              media: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+            null,
+          ],
+        },
+      }),
+    });
+
+    const variants = await verifyVariants({ graphql } as never, ["100", "200"]);
+
+    expect(variants.get("100")?.imageUrls).toEqual([]);
+    expect(variants.has("200")).toBe(false);
+  });
+
+  it("loads every page of media assigned to a variant", async () => {
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce({
+        json: async () => ({
+          data: {
+            nodes: [
+              {
+                id: "gid://shopify/ProductVariant/100",
+                title: "Silver",
+                product: { title: "Car" },
+                media: {
+                  nodes: [
+                    {
+                      __typename: "MediaImage",
+                      status: "READY",
+                      image: {
+                        url: "https://cdn.shopify.com/s/files/1/front.jpg",
+                      },
+                    },
+                  ],
+                  pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+                },
+              },
+            ],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        json: async () => ({
+          data: {
+            node: {
+              media: {
+                nodes: [
+                  {
+                    __typename: "MediaImage",
+                    status: "READY",
+                    image: {
+                      url: "https://cdn.shopify.com/s/files/1/rear.jpg",
+                    },
+                  },
+                ],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        }),
+      });
+
+    const variants = await verifyVariants({ graphql } as never, ["100"]);
+
+    expect(variants.get("100")?.imageUrls).toHaveLength(2);
+    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(graphql.mock.calls[1][1]).toEqual({
+      variables: {
+        id: "gid://shopify/ProductVariant/100",
+        after: "cursor-1",
+      },
+    });
   });
 });

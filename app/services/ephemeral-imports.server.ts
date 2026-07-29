@@ -4,6 +4,7 @@ import ExcelJS from "exceljs";
 import type { ParsedOrder, WorkbookParseResult } from "../lib/import-types";
 import { hasBlockingIssues } from "./workbook.server";
 import { createHistoricalOrder } from "./shopify-orders.server";
+import { verifyOrderVariantImages } from "./variant-verification.server";
 
 export type EphemeralJob = {
   id: string;
@@ -110,8 +111,32 @@ export async function importReadyOrders(
   }`;
   job.updatedAt = new Date();
 
+  try {
+    await verifyOrderVariantImages(admin, candidates);
+  } catch (error) {
+    job.status = "PENDING";
+    job.currentMessage =
+      error instanceof Error
+        ? `Variant verification failed: ${error.message}`
+        : "Variant verification failed. Try again.";
+    job.updatedAt = new Date();
+    return 0;
+  }
+  const verifiedCandidates = candidates.filter(
+    (order) => !hasBlockingIssues(order),
+  );
+  const newlyBlocked = candidates.length - verifiedCandidates.length;
+  if (!verifiedCandidates.length) {
+    job.status = "PENDING";
+    job.currentMessage = `${newlyBlocked} selected order${
+      newlyBlocked === 1 ? " was" : "s were"
+    } blocked because the current Shopify variant image no longer matches.`;
+    job.updatedAt = new Date();
+    return 0;
+  }
+
   let importedThisRun = 0;
-  for (const order of candidates) {
+  for (const order of verifiedCandidates) {
     try {
       await createHistoricalOrder(admin, {
         ...order,
@@ -126,7 +151,9 @@ export async function importReadyOrders(
       job.currentMessage = `Imported ${job.importedOrders}; ${job.pending.length} pending`;
     } catch (error) {
       order.issues = [
-        ...order.issues.filter((issue) => issue.code !== "SHOPIFY_IMPORT_ERROR"),
+        ...order.issues.filter(
+          (issue) => issue.code !== "SHOPIFY_IMPORT_ERROR",
+        ),
         {
           code: "SHOPIFY_IMPORT_ERROR",
           message:
@@ -142,7 +169,11 @@ export async function importReadyOrders(
   job.currentMessage = job.pending.length
     ? `Imported ${importedThisRun} selected order${
         importedThisRun === 1 ? "" : "s"
-      }; ${job.pending.length} remain pending`
+      }; ${job.pending.length} remain pending${
+        newlyBlocked
+          ? ` (${newlyBlocked} blocked by current variant-image verification)`
+          : ""
+      }`
     : "All selected orders imported successfully";
   job.updatedAt = new Date();
   return importedThisRun;

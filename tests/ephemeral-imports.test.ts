@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ParsedOrder } from "../app/lib/import-types";
 import { createHistoricalOrder } from "../app/services/shopify-orders.server";
+import { verifyOrderVariantImages } from "../app/services/variant-verification.server";
 import {
   getSelectedReadyOrders,
   importReadyOrders,
@@ -9,6 +10,9 @@ import {
 
 vi.mock("../app/services/shopify-orders.server", () => ({
   createHistoricalOrder: vi.fn(),
+}));
+vi.mock("../app/services/variant-verification.server", () => ({
+  verifyOrderVariantImages: vi.fn(),
 }));
 
 function parsedOrder(key: string, blocked = false): ParsedOrder {
@@ -33,6 +37,10 @@ function parsedOrder(key: string, blocked = false): ParsedOrder {
 describe("Selective pending-order import", () => {
   beforeEach(() => {
     vi.mocked(createHistoricalOrder).mockReset();
+    vi.mocked(verifyOrderVariantImages).mockReset();
+    vi.mocked(verifyOrderVariantImages).mockImplementation(
+      async (_admin, orders) => orders,
+    );
   });
 
   it("returns only selected, ready, unique pending orders", () => {
@@ -124,5 +132,41 @@ describe("Selective pending-order import", () => {
     expect(createHistoricalOrder).not.toHaveBeenCalled();
     expect(job.pending).toEqual([blocked]);
     expect(job.importedOrders).toBe(0);
+  });
+
+  it("rechecks variant images immediately before import and skips a stale order", async () => {
+    const order = parsedOrder("ready-before-image-change");
+    vi.mocked(verifyOrderVariantImages).mockImplementationOnce(
+      async (_admin, orders) => {
+        orders[0].issues.push({
+          code: "VARIANT_IMAGE_MISMATCH",
+          message: "The assigned variant image changed.",
+          severity: "error",
+        });
+        return orders;
+      },
+    );
+    const job = {
+      id: "job-3",
+      shop: "example.myshopify.com",
+      fileName: "orders.xlsx",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      totalOrders: 1,
+      importedOrders: 0,
+      status: "PREVIEW",
+      currentMessage: "Ready for review",
+      pending: [order],
+    } satisfies EphemeralJob;
+
+    await importReadyOrders(job, {} as never, ["ready-before-image-change"]);
+
+    expect(verifyOrderVariantImages).toHaveBeenCalledWith(expect.anything(), [
+      order,
+    ]);
+    expect(createHistoricalOrder).not.toHaveBeenCalled();
+    expect(job.pending).toEqual([order]);
+    expect(job.status).toBe("PENDING");
+    expect(job.currentMessage).toContain("blocked");
   });
 });

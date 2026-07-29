@@ -1,11 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useEffect, useRef, useState } from "react";
-import {
-  Link,
-  useFetcher,
-  useLoaderData,
-  useRevalidator,
-} from "react-router";
+import { Link, useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
   getSelectedReadyOrders,
@@ -36,10 +31,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
       currentMessage: job.currentMessage,
       readyOrders: job.pending.filter((order) => !hasBlockingIssues(order))
         .length,
-      missingImageOrders: job.pending.filter((order) =>
+      imageValidationErrorOrders: job.pending.filter((order) =>
         order.lineItems.some((line) =>
           line.issues.some((issue) =>
-            ["MISSING_IMAGE", "INVALID_IMAGE_URL"].includes(issue.code),
+            [
+              "MISSING_IMAGE",
+              "INVALID_IMAGE_URL",
+              "VARIANT_IMAGE_NOT_ASSIGNED",
+              "VARIANT_IMAGE_NOT_READY",
+              "VARIANT_IMAGE_MISMATCH",
+            ].includes(issue.code),
           ),
         ),
       ).length,
@@ -70,7 +71,8 @@ export async function action({ request }: ActionFunctionArgs) {
   const { session, admin } = await authenticate.admin(request);
   const form = await request.formData();
   const job = getEphemeralJob(session.shop, String(form.get("jobId") || ""));
-  if (!job) return Response.json({ error: "Import not found." }, { status: 404 });
+  if (!job)
+    return Response.json({ error: "Import not found." }, { status: 404 });
   if (job.status === "RUNNING") {
     return Response.json(
       { error: "An import is already running." },
@@ -108,12 +110,10 @@ export default function PreviewOrders() {
   const selectAllRef = useRef<HTMLInputElement>(null);
   const [confirmation, setConfirmation] = useState("");
   const [selectedOrderKeys, setSelectedOrderKeys] = useState<string[]>([]);
-  const importing =
-    importer.state !== "idle" || data.job?.status === "RUNNING";
+  const importing = importer.state !== "idle" || data.job?.status === "RUNNING";
   const readyOrderKeys = data.orders
     .filter((order) => !order.blocked)
     .map((order) => order.key);
-  const readyOrderKeySignature = readyOrderKeys.join("\u001f");
   const readyOrderKeySet = new Set(readyOrderKeys);
   const selectedReadyOrderKeys = selectedOrderKeys.filter((key) =>
     readyOrderKeySet.has(key),
@@ -122,9 +122,8 @@ export default function PreviewOrders() {
   const selectedCount = selectedReadyOrderKeys.length;
   const allReadySelected =
     readyOrderKeys.length > 0 && selectedCount === readyOrderKeys.length;
-  const importerError = (
-    importer.data as { error?: string } | undefined
-  )?.error;
+  const importerError = (importer.data as { error?: string } | undefined)
+    ?.error;
 
   useEffect(() => {
     if (!importing) return;
@@ -133,25 +132,19 @@ export default function PreviewOrders() {
   }, [importing, revalidator]);
 
   useEffect(() => {
-    const available = new Set(
-      readyOrderKeySignature
-        ? readyOrderKeySignature.split("\u001f")
-        : [],
-    );
-    setSelectedOrderKeys((current) => {
-      const next = current.filter((key) => available.has(key));
-      return next.length === current.length ? current : next;
-    });
-  }, [readyOrderKeySignature]);
-
-  useEffect(() => {
     if (!selectAllRef.current) return;
     selectAllRef.current.indeterminate =
       selectedCount > 0 && selectedCount < readyOrderKeys.length;
   }, [readyOrderKeys.length, selectedCount]);
 
   if (!data.job) {
-    return <s-page heading="Pending orders"><s-empty-state heading="No active import"><s-button href="/app/import/new">Upload workbook</s-button></s-empty-state></s-page>;
+    return (
+      <s-page heading="Pending orders">
+        <s-empty-state heading="No active import">
+          <s-button href="/app/import/new">Upload workbook</s-button>
+        </s-empty-state>
+      </s-page>
+    );
   }
   const confirmationMatches = confirmation.trim().toUpperCase() === "YES";
   const pendingExcelHref = `/app/api/export-pending-xlsx?job=${encodeURIComponent(data.job.id)}`;
@@ -201,15 +194,28 @@ export default function PreviewOrders() {
           </div>
         </div>
         <s-banner tone={data.job.status === "COMPLETED" ? "success" : "info"}>
-          {data.job.currentMessage}. Successfully imported orders are removed immediately.
+          {data.job.currentMessage}. Successfully imported orders are removed
+          immediately.
         </s-banner>
         {importerError ? (
           <s-banner tone="critical">{importerError}</s-banner>
         ) : null}
-        <s-grid gridTemplateColumns="repeat(auto-fit, minmax(160px, 1fr))" gap="base">
-          <s-box padding="base" borderWidth="base" borderRadius="base"><s-text>Original orders</s-text><s-heading>{data.job.totalOrders}</s-heading></s-box>
-          <s-box padding="base" borderWidth="base" borderRadius="base"><s-text>Imported</s-text><s-heading>{data.job.importedOrders}</s-heading></s-box>
-          <s-box padding="base" borderWidth="base" borderRadius="base"><s-text>Pending</s-text><s-heading>{data.orders.length}</s-heading></s-box>
+        <s-grid
+          gridTemplateColumns="repeat(auto-fit, minmax(160px, 1fr))"
+          gap="base"
+        >
+          <s-box padding="base" borderWidth="base" borderRadius="base">
+            <s-text>Original orders</s-text>
+            <s-heading>{data.job.totalOrders}</s-heading>
+          </s-box>
+          <s-box padding="base" borderWidth="base" borderRadius="base">
+            <s-text>Imported</s-text>
+            <s-heading>{data.job.importedOrders}</s-heading>
+          </s-box>
+          <s-box padding="base" borderWidth="base" borderRadius="base">
+            <s-text>Pending</s-text>
+            <s-heading>{data.orders.length}</s-heading>
+          </s-box>
         </s-grid>
       </s-section>
       <dialog
@@ -241,8 +247,8 @@ export default function PreviewOrders() {
             <strong>{selectedCount}</strong>
           </div>
           <div className="kdc-confirm-count kdc-confirm-count--blocked">
-            <span>Missing/invalid image orders</span>
-            <strong>{data.job.missingImageOrders}</strong>
+            <span>Image validation errors</span>
+            <strong>{data.job.imageValidationErrorOrders}</strong>
           </div>
           <div className="kdc-confirm-count">
             <span>Total pending</span>
@@ -250,8 +256,7 @@ export default function PreviewOrders() {
           </div>
         </div>
         <label className="kdc-confirm-label" htmlFor="confirm-import">
-          Type <strong>YES</strong> to import {selectedCount} selected
-          order(s)
+          Type <strong>YES</strong> to import {selectedCount} selected order(s)
         </label>
         <input
           id="confirm-import"
@@ -292,68 +297,81 @@ export default function PreviewOrders() {
                     <span>Select all</span>
                   </label>
                 </th>
-                <th>Order</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th>Reason</th>
+                <th>Order</th>
+                <th>Customer</th>
+                <th>Date</th>
+                <th>Items</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th>Reason</th>
               </tr>
             </thead>
-            <tbody>{data.orders.map((order) => (
-              <tr
-                key={order.key}
-                className={
-                  selectedOrderKeySet.has(order.key)
-                    ? "kdc-table-row--selected"
-                    : undefined
-                }
-              >
-                <td className="kdc-select-cell">
-                  <input
-                    className="kdc-order-checkbox"
-                    type="checkbox"
-                    checked={selectedOrderKeySet.has(order.key)}
-                    disabled={importing || order.blocked}
-                    aria-label={`Select ${order.source}`}
-                    title={
-                      order.blocked
-                        ? "Resolve this order's errors before selecting it"
-                        : undefined
-                    }
-                    onChange={(event) =>
-                      toggleOrder(order.key, event.currentTarget.checked)
-                    }
-                  />
-                </td>
-                <td>
-                  <div className="kdc-order-source">
-                    {order.imageUrl ? (
-                      <img
-                        className="kdc-order-thumbnail"
-                        src={order.imageUrl}
-                        alt=""
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span className="kdc-order-thumbnail kdc-order-thumbnail--empty">
-                        No image
-                      </span>
-                    )}
-                    <Link to={order.detailsHref} prefetch="intent">
-                      {order.source}
-                    </Link>
-                  </div>
-                </td>
-                <td>
-                  <div className="kdc-customer-cell">
-                    {order.customerName ? (
-                      <strong>{order.customerName}</strong>
-                    ) : null}
-                    <span>{order.email}</span>
-                  </div>
-                </td>
-                <td>{order.date ? new Date(order.date).toLocaleDateString() : "—"}</td>
-                <td>{order.items}</td><td>₹{order.total.toFixed(2)}</td>
-                <td>{order.blocked ? "Blocked" : "Ready"}</td>
-                <td className="kdc-issue">{order.issue}</td>
-              </tr>
-            ))}</tbody>
+            <tbody>
+              {data.orders.map((order) => (
+                <tr
+                  key={order.key}
+                  className={
+                    selectedOrderKeySet.has(order.key)
+                      ? "kdc-table-row--selected"
+                      : undefined
+                  }
+                >
+                  <td className="kdc-select-cell">
+                    <input
+                      className="kdc-order-checkbox"
+                      type="checkbox"
+                      checked={selectedOrderKeySet.has(order.key)}
+                      disabled={importing || order.blocked}
+                      aria-label={`Select ${order.source}`}
+                      title={
+                        order.blocked
+                          ? "Resolve this order's errors before selecting it"
+                          : undefined
+                      }
+                      onChange={(event) =>
+                        toggleOrder(order.key, event.currentTarget.checked)
+                      }
+                    />
+                  </td>
+                  <td>
+                    <div className="kdc-order-source">
+                      {order.imageUrl ? (
+                        <img
+                          className="kdc-order-thumbnail"
+                          src={order.imageUrl}
+                          alt=""
+                          loading="lazy"
+                        />
+                      ) : (
+                        <span className="kdc-order-thumbnail kdc-order-thumbnail--empty">
+                          No image
+                        </span>
+                      )}
+                      <Link to={order.detailsHref} prefetch="intent">
+                        {order.source}
+                      </Link>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="kdc-customer-cell">
+                      {order.customerName ? (
+                        <strong>{order.customerName}</strong>
+                      ) : null}
+                      <span>{order.email}</span>
+                    </div>
+                  </td>
+                  <td>
+                    {order.date
+                      ? new Date(order.date).toLocaleDateString()
+                      : "—"}
+                  </td>
+                  <td>{order.items}</td>
+                  <td>₹{order.total.toFixed(2)}</td>
+                  <td>{order.blocked ? "Blocked" : "Ready"}</td>
+                  <td className="kdc-issue">{order.issue}</td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       </s-section>

@@ -22,18 +22,102 @@ function cellText(value: unknown): string {
   return String(value).trim();
 }
 
-function isShopifyCdnImageUrl(value?: string) {
-  if (!value) return false;
+const VARIANT_IMAGE_ISSUE_CODES = new Set([
+  "VARIANT_NOT_FOUND",
+  "VARIANT_IMAGE_NOT_ASSIGNED",
+  "VARIANT_IMAGE_NOT_READY",
+  "VARIANT_IMAGE_MISMATCH",
+]);
+
+export function canonicalShopifyCdnImageUrl(value?: string) {
+  if (!value) return null;
   try {
     const url = new URL(value);
-    return (
+    const valid =
       url.protocol === "https:" &&
       url.hostname === "cdn.shopify.com" &&
-      url.pathname.startsWith("/s/files/")
-    );
+      url.pathname.startsWith("/s/files/");
+    return valid ? `https://cdn.shopify.com${url.pathname}` : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function isShopifyCdnImageUrl(value?: string) {
+  return canonicalShopifyCdnImageUrl(value) !== null;
+}
+
+export function shopifyVariantImageUrlsMatch(
+  workbookImageUrl?: string,
+  variantImageUrl?: string,
+) {
+  const workbookImage = canonicalShopifyCdnImageUrl(workbookImageUrl);
+  const variantImage = canonicalShopifyCdnImageUrl(variantImageUrl);
+  return Boolean(
+    workbookImage && variantImage && workbookImage === variantImage,
+  );
+}
+
+export function applyVariantImageVerification(
+  line: ParsedLineItem,
+  verified?: {
+    title: string;
+    imageUrls: string[];
+    hasUnreadyImage: boolean;
+  },
+) {
+  line.issues = line.issues.filter(
+    (issue) => !VARIANT_IMAGE_ISSUE_CODES.has(issue.code),
+  );
+  const numericId = line.variantId?.replace(
+    "gid://shopify/ProductVariant/",
+    "",
+  );
+  if (!numericId || !variantIdSchema.safeParse(numericId).success) return line;
+
+  if (!verified) {
+    line.issues.push({
+      code: "VARIANT_NOT_FOUND",
+      message: `Shopify variant ${numericId} does not exist.`,
+      field: "variantId",
+      row: line.sourceRowNumber,
+      severity: "error",
+    });
+    return line;
+  }
+
+  line.variantId = `gid://shopify/ProductVariant/${numericId}`;
+  line.productTitle = verified.title;
+  if (!verified.imageUrls.length) {
+    line.issues.push({
+      code: verified.hasUnreadyImage
+        ? "VARIANT_IMAGE_NOT_READY"
+        : "VARIANT_IMAGE_NOT_ASSIGNED",
+      message: verified.hasUnreadyImage
+        ? "The image assigned to this Shopify variant is still processing and cannot be verified."
+        : "This Shopify variant has no assigned image. Assign an image to the exact variant before importing.",
+      field: "imageUrl",
+      row: line.sourceRowNumber,
+      severity: "error",
+    });
+    return line;
+  }
+
+  const workbookImage = canonicalShopifyCdnImageUrl(line.imageUrl);
+  if (!workbookImage) return line;
+  const matchesAssignedImage = verified.imageUrls.some((imageUrl) =>
+    shopifyVariantImageUrlsMatch(line.imageUrl, imageUrl),
+  );
+  if (!matchesAssignedImage) {
+    line.issues.push({
+      code: "VARIANT_IMAGE_MISMATCH",
+      message: `The Excel image does not match an image assigned to Shopify variant ${numericId}. Check the variant ID and Line: Image URL.`,
+      field: "imageUrl",
+      row: line.sourceRowNumber,
+      severity: "error",
+    });
+  }
+  return line;
 }
 
 function parseDate(value?: string) {
@@ -59,8 +143,14 @@ function firstAliasedValue(
   const header = available.find((item) =>
     candidates.some(
       (candidate) =>
-        item.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() ===
-        candidate.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
+        item
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim() ===
+        candidate
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim(),
     ),
   );
   return firstValue(rows, header);
@@ -113,9 +203,7 @@ export async function parseWorkbook(
   });
   if (!rows.length) throw new Error("The workbook has no readable rows.");
 
-  const headers = rows[0]
-    .map(cellText)
-    .filter(Boolean);
+  const headers = rows[0].map(cellText).filter(Boolean);
   const mapping = {
     ...detectMapping(headers),
     ...(headers.includes("Customer: Email") ? KDC_MAPPING : {}),
@@ -128,7 +216,8 @@ export async function parseWorkbook(
     headers.forEach((header, index) => {
       values[header] = cellText(row[index]);
     });
-    if (Object.values(values).some(Boolean)) rawRows.push({ rowNumber, values });
+    if (Object.values(values).some(Boolean))
+      rawRows.push({ rowNumber, values });
   });
 
   const grouped = new Map<string, typeof rawRows>();
@@ -157,7 +246,8 @@ export async function parseWorkbook(
       if (!email) {
         issues.push({
           code: "MISSING_CUSTOMER_EMAIL",
-          message: "Customer email is missing. Confirm or add a customer before import.",
+          message:
+            "Customer email is missing. Confirm or add a customer before import.",
           field: "customerEmail",
           severity: "error",
         });
@@ -185,7 +275,9 @@ export async function parseWorkbook(
           const variantId = mapping.variantId
             ? values[mapping.variantId]
             : undefined;
-          const imageUrl = mapping.imageUrl ? values[mapping.imageUrl] : undefined;
+          const imageUrl = mapping.imageUrl
+            ? values[mapping.imageUrl]
+            : undefined;
           const quantityResult = quantitySchema.safeParse(quantityRaw);
           const priceResult = moneySchema.safeParse(
             priceRaw.replace(/[₹,\s]/g, ""),
@@ -259,7 +351,9 @@ export async function parseWorkbook(
             variantTitle: mapping.variantTitle
               ? values[mapping.variantTitle]
               : undefined,
-            productId: mapping.productId ? values[mapping.productId] : undefined,
+            productId: mapping.productId
+              ? values[mapping.productId]
+              : undefined,
             variantId,
             sku: mapping.sku ? values[mapping.sku] : undefined,
             quantity: quantityResult.success ? quantityResult.data : 0,
@@ -337,8 +431,9 @@ export async function parseWorkbook(
         tags: [
           "KDC-Historical-Import",
           "KDC Order History Import",
-          ...(firstValue(rows, mapping.tags)?.split(",").map((tag) => tag.trim()) ??
-            []),
+          ...(firstValue(rows, mapping.tags)
+            ?.split(",")
+            .map((tag) => tag.trim()) ?? []),
         ].filter(Boolean),
         lineItems,
         issues,
@@ -371,6 +466,9 @@ export function rebuildOrderIssues(order: ParsedOrder) {
           "MISSING_IMAGE",
           "INVALID_IMAGE_URL",
           "VARIANT_NOT_FOUND",
+          "VARIANT_IMAGE_NOT_ASSIGNED",
+          "VARIANT_IMAGE_NOT_READY",
+          "VARIANT_IMAGE_MISMATCH",
         ].includes(issue.code),
     ),
     ...order.lineItems.flatMap((item) => item.issues),

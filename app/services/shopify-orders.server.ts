@@ -27,17 +27,19 @@ export type CustomerVerificationProfile = {
   defaultAddress?: string;
 };
 
-function formatMailingAddress(address?: {
-  name?: string | null;
-  company?: string | null;
-  address1?: string | null;
-  address2?: string | null;
-  city?: string | null;
-  province?: string | null;
-  zip?: string | null;
-  country?: string | null;
-  phone?: string | null;
-} | null) {
+function formatMailingAddress(
+  address?: {
+    name?: string | null;
+    company?: string | null;
+    address1?: string | null;
+    address2?: string | null;
+    city?: string | null;
+    province?: string | null;
+    zip?: string | null;
+    country?: string | null;
+    phone?: string | null;
+  } | null,
+) {
   if (!address) return undefined;
   const values = [
     address.name,
@@ -142,10 +144,7 @@ export async function findCustomerNamesByEmail(
       ]),
     );
     const variableDefinitions = batch
-      .map(
-        (_, index) =>
-          `$identifier${index}: CustomerIdentifierInput!`,
-      )
+      .map((_, index) => `$identifier${index}: CustomerIdentifierInput!`)
       .join(", ");
     const selections = batch
       .map(
@@ -169,7 +168,8 @@ export async function findCustomerNamesByEmail(
       };
 
       batch.forEach((email, index) => {
-        const displayName = json.data?.[`customer${index}`]?.displayName?.trim();
+        const displayName =
+          json.data?.[`customer${index}`]?.displayName?.trim();
         if (displayName && displayName.toLowerCase() !== email) {
           customerNames.set(email, displayName);
         }
@@ -184,7 +184,11 @@ export async function findCustomerNamesByEmail(
 
 function financialStatus(status?: string | null) {
   const value = status?.toUpperCase().replace(/\s+/g, "_");
-  if (["PAID", "PENDING", "AUTHORIZED", "REFUNDED", "VOIDED"].includes(value ?? "")) {
+  if (
+    ["PAID", "PENDING", "AUTHORIZED", "REFUNDED", "VOIDED"].includes(
+      value ?? "",
+    )
+  ) {
     return value;
   }
   return undefined;
@@ -250,51 +254,158 @@ export async function verifyVariants(
   variantIds: string[],
 ) {
   const unique = [...new Set(variantIds.filter(Boolean))];
-  if (!unique.length) return new Map<string, { title: string; imageUrl?: string }>();
+  const verified = new Map<string, VerifiedVariant>();
+  if (!unique.length) return verified;
+
+  for (let offset = 0; offset < unique.length; offset += 10) {
+    const batch = unique.slice(offset, offset + 10);
+    const response = await admin.graphql(
+      `#graphql
+        query KdcVerifyVariants($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on ProductVariant {
+              id
+              title
+              product { title }
+              media(first: 50) {
+                nodes {
+                  __typename
+                  ... on MediaImage {
+                    status
+                    image { url }
+                  }
+                }
+                pageInfo { hasNextPage endCursor }
+              }
+            }
+          }
+        }
+      `,
+      {
+        variables: {
+          ids: batch.map((id) =>
+            id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id}`,
+          ),
+        },
+      },
+    );
+    const json = (await response.json()) as VariantNodesResponse;
+    if (json.errors?.length || !json.data?.nodes) {
+      throw new Error("Shopify could not verify the product variants.");
+    }
+
+    for (const node of json.data.nodes) {
+      if (!node) continue;
+      const numericId = node.id.replace("gid://shopify/ProductVariant/", "");
+      const value: VerifiedVariant = {
+        title: `${node.product.title} — ${node.title}`,
+        imageUrls: [],
+        hasUnreadyImage: false,
+      };
+      appendVariantMedia(value, node.media.nodes);
+      verified.set(numericId, value);
+
+      let cursor = node.media.pageInfo.endCursor;
+      let hasNextPage = node.media.pageInfo.hasNextPage;
+      while (hasNextPage) {
+        if (!cursor) {
+          throw new Error("Shopify returned incomplete variant media.");
+        }
+        const page = await loadVariantMediaPage(admin, node.id, cursor);
+        appendVariantMedia(value, page.nodes);
+        cursor = page.pageInfo.endCursor;
+        hasNextPage = page.pageInfo.hasNextPage;
+      }
+    }
+  }
+
+  return verified;
+}
+
+export type VerifiedVariant = {
+  title: string;
+  imageUrls: string[];
+  hasUnreadyImage: boolean;
+};
+
+type VariantMediaNode = {
+  __typename: string;
+  status?: string;
+  image?: { url?: string } | null;
+};
+
+type VariantMediaConnection = {
+  nodes: VariantMediaNode[];
+  pageInfo: {
+    hasNextPage: boolean;
+    endCursor?: string | null;
+  };
+};
+
+type VariantNodesResponse = {
+  errors?: unknown[];
+  data?: {
+    nodes?: Array<{
+      id: string;
+      title: string;
+      product: { title: string };
+      media: VariantMediaConnection;
+    } | null>;
+  };
+};
+
+function appendVariantMedia(
+  variant: VerifiedVariant,
+  media: VariantMediaNode[],
+) {
+  for (const item of media) {
+    if (item.__typename !== "MediaImage") continue;
+    const imageUrl = item.image?.url?.trim();
+    if (item.status === "READY" && imageUrl) {
+      if (!variant.imageUrls.includes(imageUrl))
+        variant.imageUrls.push(imageUrl);
+    } else {
+      variant.hasUnreadyImage = true;
+    }
+  }
+}
+
+async function loadVariantMediaPage(
+  admin: AdminApiContext,
+  variantId: string,
+  after?: string | null,
+) {
   const response = await admin.graphql(
     `#graphql
-      query KdcVerifyVariants($ids: [ID!]!) {
-        nodes(ids: $ids) {
+      query KdcVerifyVariantMediaPage($id: ID!, $after: String) {
+        node(id: $id) {
           ... on ProductVariant {
-            id
-            title
-            product { title featuredMedia { preview { image { url } } } }
-            image { url }
+            media(first: 50, after: $after) {
+              nodes {
+                __typename
+                ... on MediaImage {
+                  status
+                  image { url }
+                }
+              }
+              pageInfo { hasNextPage endCursor }
+            }
           }
         }
       }
     `,
-    {
-      variables: {
-        ids: unique.map((id) =>
-          id.startsWith("gid://")
-            ? id
-            : `gid://shopify/ProductVariant/${id}`,
-        ),
-      },
-    },
+    { variables: { id: variantId, after } },
   );
   const json = (await response.json()) as {
+    errors?: unknown[];
     data?: {
-      nodes?: Array<{
-        id: string;
-        title: string;
-        image?: { url?: string };
-        product: {
-          title: string;
-          featuredMedia?: { preview?: { image?: { url?: string } } };
-        };
-      } | null>;
+      node?: {
+        media?: VariantMediaConnection;
+      } | null;
     };
   };
-  const map = new Map<string, { title: string; imageUrl?: string }>();
-  for (const node of json.data?.nodes ?? []) {
-    if (!node) continue;
-    map.set(node.id.replace("gid://shopify/ProductVariant/", ""), {
-      title: `${node.product.title} — ${node.title}`,
-      imageUrl:
-        node.image?.url ?? node.product.featuredMedia?.preview?.image?.url,
-    });
+  if (json.errors?.length || !json.data?.node?.media) {
+    throw new Error("Shopify could not finish verifying variant media.");
   }
-  return map;
+  return json.data.node.media;
 }
