@@ -69,8 +69,10 @@ separate from the temporary pending-import list and loads orders directly from
 Shopify. It provides:
 
 - Fifty orders per page with cursor pagination and Shopify order search.
-- Order totals, customer, payment, fulfillment, cancellation, and editability
-  status.
+- Order totals, customer, fulfillment, cancellation, and editability status.
+  The list intentionally omits the Payment column. Fulfillment is displayed as
+  a compact color-coded badge: green fulfilled, amber partial/pending, red
+  unfulfilled, blue scheduled/in progress, and gray fallback.
 - A detail/editor route at `/app/orders/order?id=...`.
 - Shipping-address, order email, phone, note, and shipping-phone updates using
   `orderUpdate`.
@@ -112,6 +114,16 @@ This feature was deployed successfully on 2026-07-30:
   200. An unauthenticated `/app/orders` request returns Shopify's expected 410
   because embedded app authentication is required.
 - No production order was edited or deleted during verification.
+
+The simplified Shopify Orders status table was deployed on 2026-07-30:
+
+- Source commit: local `079891b`; deployment-snapshot commit `8c12809`
+- Render deploy: `dep-d9l663jl550s73fldkqg`
+- Validation: 61 tests, typecheck, lint, production build, formatting,
+  Shopify Admin GraphQL `2026-07` code generation, and `git diff --check`
+  passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
 
 ## Import and validation rules
 
