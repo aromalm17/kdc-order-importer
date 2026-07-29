@@ -245,6 +245,45 @@ Shopify will retain fulfillment/audit history even after correction; the old
 fulfilled product cannot be erased from historical records by a normal order
 edit.
 
+## Order-level preorder customer message
+
+The Shopify order editor now stores two merchant-editable fields against the
+order without changing any product, variant, image, quantity, or product price:
+
+- `custom.preorder_eta` (`single_line_text_field`)
+- `custom.preorder_pending_price` (`number_decimal`)
+
+The fields appear in the order editor's **Preorder customer message** section.
+Both fields are required when the message is enabled; clearing both deletes the
+message. The app creates pinned ORDER metafield definitions when first saved
+and grants Customer Account API read access. The customer-facing text is always
+generated from this fixed template:
+
+`Arriving {ETA}. Pay the remaining {formatted pending price} before dispatch.`
+
+Only the ETA and pending amount are editable. The pending amount is
+informational and does not alter the Shopify order total, outstanding balance,
+or product price.
+
+This feature was deployed on 2026-07-30:
+
+- Order Import source commit: local `6aa5568`; deployment-snapshot commit
+  `820c563`
+- Render deploy: `dep-d9l60bf10e5c73fsohu0`
+- Customer account source:
+  `../kdc-single-store-final/kdc-account-single-store/extensions/kdc-account/src/FullPageExtension.jsx`
+- Customer account app release: `preorder-order-message-1`
+- Shopify app version:
+  `https://dev.shopify.com/dashboard/227614855/apps/402981945345/versions/1069468385281`
+- Validation: 61 importer tests, typecheck, lint, importer production build,
+  customer account app build, formatting checks, Shopify Admin GraphQL
+  `2026-07` code generation, and `git diff --check` passed.
+- Production verification: Order Import `GET /auth/login` and `GET /` returned
+  HTTP 200; Shopify CLI confirmed the customer account version was released to
+  users.
+- No live order values were changed during deployment. An administrator must
+  open a specific order in Order Import and save the ETA and pending amount.
+
 ## Important source locations
 
 - Pending list and confirmation UI: `app/routes/app.preview.tsx`
