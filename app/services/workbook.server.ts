@@ -22,11 +22,15 @@ function cellText(value: unknown): string {
   return String(value).trim();
 }
 
-function isHttpUrl(value?: string) {
+function isShopifyCdnImageUrl(value?: string) {
   if (!value) return false;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "cdn.shopify.com" &&
+      url.pathname.startsWith("/s/files/")
+    );
   } catch {
     return false;
   }
@@ -187,13 +191,11 @@ export async function parseWorkbook(
               row: rowNumber,
               severity: "error",
             });
-          } else if (
-            /admin\.shopify\.com|\/admin\//i.test(imageUrl) ||
-            !isHttpUrl(imageUrl)
-          ) {
+          } else if (!isShopifyCdnImageUrl(imageUrl)) {
             lineIssues.push({
               code: "INVALID_IMAGE_URL",
-              message: "The image must be a public HTTP image URL, not Shopify Admin.",
+              message:
+                'The image URL must start with "https://cdn.shopify.com/s/files/".',
               field: "imageUrl",
               row: rowNumber,
               severity: "error",

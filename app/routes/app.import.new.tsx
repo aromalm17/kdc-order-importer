@@ -48,7 +48,7 @@ export async function action({ request }: ActionFunctionArgs) {
           line.imageUrl = match.imageUrl;
           line.issues = line.issues.filter(
             (issue) =>
-              !["MISSING_IMAGE", "INVALID_IMAGE_URL", "VARIANT_NOT_FOUND"].includes(issue.code),
+              !["MISSING_IMAGE", "VARIANT_NOT_FOUND"].includes(issue.code),
           );
         } else {
           line.issues.push({
