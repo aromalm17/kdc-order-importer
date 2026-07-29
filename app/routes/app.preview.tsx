@@ -1,6 +1,11 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useEffect, useRef, useState } from "react";
-import { useFetcher, useLoaderData, useRevalidator } from "react-router";
+import {
+  Link,
+  useFetcher,
+  useLoaderData,
+  useRevalidator,
+} from "react-router";
 import { authenticate } from "../shopify.server";
 import {
   getEphemeralJob,
@@ -188,7 +193,9 @@ export default function PreviewOrders() {
                         No image
                       </span>
                     )}
-                    <a href={order.detailsHref}>{order.source}</a>
+                    <Link to={order.detailsHref} prefetch="intent">
+                      {order.source}
+                    </Link>
                   </div>
                 </td><td>{order.email}</td>
                 <td>{order.date ? new Date(order.date).toLocaleDateString() : "—"}</td>
