@@ -296,6 +296,18 @@ This feature was deployed on 2026-07-30:
 - No live order values were changed during deployment. An administrator must
   open a specific order in Order Import and save the ETA and pending amount.
 
+First-save metafield definition creation was corrected after Shopify rejected
+the generic `PUBLIC_READ_WRITE` admin access value for the merchant-owned
+`custom.*` namespace. Definitions now use Shopify's required
+`MERCHANT_READ_WRITE` value:
+
+- Source commit: local `0609881`; deployment-snapshot commit `22c0835`
+- Render deploy: `dep-d9l68qv10e5c73ft4fs0`
+- Validation: 62 tests, typecheck, lint, production build, formatting, and
+  `git diff --check` passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
+
 ## Important source locations
 
 - Pending list and confirmation UI: `app/routes/app.preview.tsx`
