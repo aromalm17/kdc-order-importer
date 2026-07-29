@@ -167,6 +167,28 @@ The single-tag rule was deployed on 2026-07-30:
   200.
 - Existing Shopify orders are not retroactively retagged.
 
+## Imported line-item prices
+
+New imported orders use the unit price from Excel's `Line: Price` column, not
+the current Shopify catalog price:
+
+- The parsed `unitPrice` is retained through `importReadyOrders`.
+- `createHistoricalOrder` sends the verified `variantId`, quantity, and a
+  `priceSet.shopMoney` containing the Excel unit price and workbook currency.
+- Missing, negative, or non-finite prices are blocked before Shopify order
+  creation. Zero remains a valid import price.
+
+This behavior was deployed on 2026-07-30:
+
+- Source commit: local `c78fd81`; deployment-snapshot commit `0b11e17`
+- Render deploy: `dep-d9l5go3l550s73fkh1b0`
+- Validation: 59 tests, typecheck, lint, production build, Shopify `2026-07`
+  GraphQL code generation, and `git diff --check` passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
+- The change applies to newly imported orders and does not recalculate existing
+  Shopify orders.
+
 ## Imported order shipping address
 
 The request to use the Shopify customer's default address as the imported
