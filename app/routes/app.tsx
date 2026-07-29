@@ -24,10 +24,7 @@ export function shouldRevalidate({
   const isPreviewRoute = (pathname: string) =>
     pathname === "/app/preview" || pathname === "/app/preview/order";
 
-  if (
-    isPreviewRoute(currentUrl.pathname) &&
-    isPreviewRoute(nextUrl.pathname)
-  ) {
+  if (isPreviewRoute(currentUrl.pathname) && isPreviewRoute(nextUrl.pathname)) {
     return false;
   }
 
@@ -43,6 +40,7 @@ export default function App() {
         <s-link href="/app">Dashboard</s-link>
         <s-link href="/app/import/new">New Import</s-link>
         <s-link href="/app/preview">Pending Orders</s-link>
+        <s-link href="/app/orders">Shopify Orders</s-link>
         <s-link href="/app/help">Help</s-link>
       </s-app-nav>
       <Outlet />

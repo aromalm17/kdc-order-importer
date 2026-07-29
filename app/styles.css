@@ -1,6 +1,11 @@
 :root {
   color-scheme: light;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
 body {
@@ -180,6 +185,311 @@ body {
   flex-wrap: wrap;
   gap: 10px;
   margin: 0;
+}
+
+.kdc-table-wrap {
+  overflow-x: auto;
+}
+
+.kdc-managed-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.kdc-managed-toolbar h2,
+.kdc-danger-zone h3 {
+  margin: 0 0 6px;
+}
+
+.kdc-managed-toolbar p,
+.kdc-danger-zone p {
+  margin: 0;
+  color: #616161;
+  line-height: 1.5;
+}
+
+.kdc-managed-search,
+.kdc-managed-variant-search {
+  display: grid;
+  gap: 6px;
+  min-width: min(460px, 100%);
+}
+
+.kdc-managed-search > div,
+.kdc-managed-variant-search > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kdc-managed-search label,
+.kdc-managed-variant-search label,
+.kdc-managed-form label,
+.kdc-managed-inline-form label,
+.kdc-managed-line-card label,
+.kdc-delete-form label {
+  color: #303030;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.kdc-native-button,
+.kdc-danger-button {
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 1px solid #303030;
+  border-radius: 8px;
+  color: #fff;
+  background: #303030;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.kdc-native-button:hover {
+  background: #1a1a1a;
+}
+
+.kdc-native-button:disabled,
+.kdc-danger-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.kdc-secondary-link {
+  padding: 7px 6px;
+  white-space: nowrap;
+}
+
+.kdc-managed-orders-table th,
+.kdc-managed-orders-table td {
+  padding: 12px;
+  border-bottom: 1px solid #e1e3e5;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.kdc-managed-orders-table th {
+  color: #616161;
+  background: #f7f7f7;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.kdc-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.kdc-managed-form {
+  display: grid;
+  gap: 16px;
+}
+
+.kdc-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.kdc-form-grid label,
+.kdc-managed-inline-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.kdc-form-span-2 {
+  grid-column: 1 / -1;
+}
+
+.kdc-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #8a8a8a;
+  border-radius: 8px;
+  color: #202223;
+  background: #fff;
+  font: inherit;
+  resize: vertical;
+}
+
+.kdc-form-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.kdc-managed-inline-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(160px, 240px) auto;
+  align-items: end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.kdc-managed-variant-search {
+  margin-bottom: 16px;
+}
+
+.kdc-variant-results {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #d8d8d8;
+  border-radius: 10px;
+  background: #f7f7f7;
+}
+
+.kdc-variant-result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 10px;
+}
+
+.kdc-variant-result {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e1e3e5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.kdc-variant-result img,
+.kdc-variant-result > span {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  object-fit: cover;
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+}
+
+.kdc-variant-result > div,
+.kdc-managed-line-current > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.kdc-variant-result span,
+.kdc-managed-line-current span {
+  color: #616161;
+  font-size: 0.8rem;
+}
+
+.kdc-variant-result code,
+.kdc-managed-line-current code {
+  overflow: hidden;
+  color: #4a4a4a;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kdc-managed-line-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.kdc-managed-line-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #d8d8d8;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.kdc-managed-line-current {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.kdc-line-edit-grid {
+  padding-top: 14px;
+  border-top: 1px solid #e1e3e5;
+}
+
+.kdc-line-edit-grid small {
+  color: #616161;
+  font-weight: 400;
+}
+
+.kdc-checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.kdc-danger-zone {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 430px);
+  gap: 24px;
+  padding: 18px;
+  border: 1px solid #d72c0d;
+  border-radius: 12px;
+  background: #fff4f4;
+}
+
+.kdc-delete-form {
+  display: grid;
+  gap: 8px;
+}
+
+.kdc-danger-button {
+  border-color: #b42318;
+  background: #b42318;
+}
+
+.kdc-danger-button:hover {
+  background: #8f1c13;
+}
+
+.kdc-back-link {
+  margin: 18px 0 30px;
+}
+
+@media (max-width: 760px) {
+  .kdc-managed-toolbar,
+  .kdc-managed-search > div,
+  .kdc-managed-variant-search > div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .kdc-managed-search,
+  .kdc-managed-variant-search {
+    min-width: 100%;
+  }
+
+  .kdc-form-grid,
+  .kdc-managed-inline-form,
+  .kdc-danger-zone {
+    grid-template-columns: 1fr;
+  }
+
+  .kdc-form-span-2 {
+    grid-column: auto;
+  }
+
+  .kdc-address-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .kdc-selected-count {
