@@ -73,6 +73,7 @@ describe("Shopify order manager", () => {
         },
       },
     );
+    expect(graphql.mock.calls[0][0]).not.toContain("displayFinancialStatus");
   });
 
   it("updates order contact and translates countryCodeV2 to MailingAddressInput", async () => {

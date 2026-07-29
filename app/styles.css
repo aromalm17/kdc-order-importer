@@ -282,6 +282,45 @@ body {
   letter-spacing: 0.03em;
 }
 
+.kdc-fulfillment-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: #4a4a4a;
+  background: #ededed;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.kdc-fulfillment-status--fulfilled {
+  border-color: #8bd5ad;
+  color: #0c5132;
+  background: #cdfee1;
+}
+
+.kdc-fulfillment-status--partial,
+.kdc-fulfillment-status--pending {
+  border-color: #e6b85c;
+  color: #5c3b00;
+  background: #fff1c7;
+}
+
+.kdc-fulfillment-status--unfulfilled {
+  border-color: #efaaa2;
+  color: #8e1f0b;
+  background: #fee4e2;
+}
+
+.kdc-fulfillment-status--progress {
+  border-color: #91c9ef;
+  color: #0b4f71;
+  background: #e4f3ff;
+}
+
 .kdc-pagination {
   display: flex;
   justify-content: space-between;

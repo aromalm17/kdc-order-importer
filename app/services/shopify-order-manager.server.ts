@@ -115,7 +115,6 @@ const ORDER_LIST_QUERY = `#graphql
         createdAt
         updatedAt
         email
-        displayFinancialStatus
         displayFulfillmentStatus
         cancelledAt
         merchantEditable
@@ -320,7 +319,6 @@ export async function listManagedOrders(
         createdAt: string;
         updatedAt: string;
         email?: string | null;
-        displayFinancialStatus: string;
         displayFulfillmentStatus: string;
         cancelledAt?: string | null;
         merchantEditable: boolean;
@@ -340,7 +338,6 @@ export async function listManagedOrders(
       updatedAt: order.updatedAt,
       email: order.email ?? null,
       customerName: order.customer?.displayName ?? null,
-      financialStatus: order.displayFinancialStatus,
       fulfillmentStatus: order.displayFulfillmentStatus,
       cancelled: Boolean(order.cancelledAt),
       editable: order.merchantEditable,

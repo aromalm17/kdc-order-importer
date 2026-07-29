@@ -24,6 +24,35 @@ function money(amount: string, currencyCode: string) {
   }).format(Number(amount));
 }
 
+function FulfillmentStatus({ status }: { status: string }) {
+  const normalized = status
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+  const label = normalized
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
+  let tone = "neutral";
+  if (normalized === "FULFILLED") tone = "fulfilled";
+  else if (normalized.includes("PARTIAL")) tone = "partial";
+  else if (normalized === "UNFULFILLED") tone = "unfulfilled";
+  else if (
+    normalized.includes("PROGRESS") ||
+    normalized.includes("SCHEDULED")
+  ) {
+    tone = "progress";
+  } else if (normalized.includes("HOLD") || normalized.includes("PENDING")) {
+    tone = "pending";
+  }
+  return (
+    <span className={`kdc-fulfillment-status kdc-fulfillment-status--${tone}`}>
+      {label || "Unknown"}
+    </span>
+  );
+}
+
 export default function ShopifyOrders() {
   const data = useLoaderData<typeof loader>();
   const nextParams = new URLSearchParams();
@@ -88,7 +117,6 @@ export default function ShopifyOrders() {
                   <th>Order</th>
                   <th>Customer</th>
                   <th>Date</th>
-                  <th>Payment</th>
                   <th>Fulfillment</th>
                   <th>Total</th>
                   <th>Editing</th>
@@ -129,8 +157,9 @@ export default function ShopifyOrders() {
                         timeStyle: "short",
                       }).format(new Date(order.createdAt))}
                     </td>
-                    <td>{order.financialStatus}</td>
-                    <td>{order.fulfillmentStatus}</td>
+                    <td>
+                      <FulfillmentStatus status={order.fulfillmentStatus} />
+                    </td>
                     <td>
                       {money(order.total.amount, order.total.currencyCode)}
                     </td>
