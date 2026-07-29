@@ -325,12 +325,13 @@ The customer account Shopify app was renamed from
   handle merely to match the visible app name because that can break links.
 
 First-save metafield definition creation was corrected after Shopify rejected
-the generic `PUBLIC_READ_WRITE` admin access value for the merchant-owned
-`custom.*` namespace. Definitions now use Shopify's required
-`MERCHANT_READ_WRITE` value:
+both `PUBLIC_READ_WRITE` and `MERCHANT_READ_WRITE` as explicit Admin access
+values for the merchant-owned `custom.*` namespace. Do not set
+`access.admin` when creating these definitions. Omit it so Shopify applies the
+merchant-owned Admin default, and set only `customerAccount: READ`:
 
-- Source commit: local `0609881`; deployment-snapshot commit `22c0835`
-- Render deploy: `dep-d9l68qv10e5c73ft4fs0`
+- Source commit: local `6287834`; deployment-snapshot commit `4952d87`
+- Render deploy: `dep-d9l6nspt0dsc73fsu950`
 - Validation: 62 tests, typecheck, lint, production build, formatting, and
   `git diff --check` passed.
 - Production verification: normal `GET /auth/login` and `GET /` returned HTTP
