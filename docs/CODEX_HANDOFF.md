@@ -311,6 +311,19 @@ This feature was deployed on 2026-07-30:
 - No live order values were changed during deployment. An administrator must
   open a specific order in Order Import and save the ETA and pending amount.
 
+The customer account Shopify app was renamed from
+`KDC Account Single Store` to `Customer Profile` on 2026-07-30:
+
+- Configuration:
+  `../kdc-single-store-final/kdc-account-single-store/shopify.app.toml`
+- Released Shopify app version: `customer-profile-name-1`
+- Shopify version:
+  `https://dev.shopify.com/dashboard/227614855/apps/402981945345/versions/1069488177153`
+- `shopify app build` passed, Shopify CLI confirmed the version was released
+  to users, and `shopify app info --json` reports `Customer Profile`.
+- The extension's internal handle remains `kdc-account`; do not change the
+  handle merely to match the visible app name because that can break links.
+
 First-save metafield definition creation was corrected after Shopify rejected
 the generic `PUBLIC_READ_WRITE` admin access value for the merchant-owned
 `custom.*` namespace. Definitions now use Shopify's required
