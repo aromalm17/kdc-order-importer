@@ -141,9 +141,22 @@ describe("Shopify order manager", () => {
     const calculatedLine = {
       ...originalLine,
       id: "gid://shopify/CalculatedLineItem/10",
+      editableQuantity: 1,
     };
     const graphql = vi
       .fn()
+      .mockResolvedValueOnce(
+        response({
+          node: {
+            id: "gid://shopify/LineItem/10",
+            quantity: 1,
+            currentQuantity: 1,
+            unfulfilledQuantity: 1,
+            merchantEditable: true,
+            variant: { id: "gid://shopify/ProductVariant/100" },
+          },
+        }),
+      )
       .mockResolvedValueOnce(
         response({
           productVariant: {
@@ -218,36 +231,50 @@ describe("Shopify order manager", () => {
       restock: true,
     });
 
-    expect(graphql).toHaveBeenCalledTimes(5);
-    expect(graphql.mock.calls[2][1].variables).toEqual({
+    expect(graphql).toHaveBeenCalledTimes(6);
+    expect(graphql.mock.calls[3][1].variables).toEqual({
       id: "gid://shopify/CalculatedOrder/1",
       variantId: "gid://shopify/ProductVariant/200",
       quantity: 2,
     });
-    expect(graphql.mock.calls[3][1].variables).toEqual({
+    expect(graphql.mock.calls[4][1].variables).toEqual({
       id: "gid://shopify/CalculatedOrder/1",
       lineItemId: "gid://shopify/CalculatedLineItem/10",
       quantity: 0,
       restock: true,
     });
-    expect(graphql.mock.calls[4][0]).toContain("notifyCustomer: false");
+    expect(graphql.mock.calls[5][0]).toContain("notifyCustomer: false");
   });
 
   it("rejects a replacement when the expected image is not assigned", async () => {
-    const graphql = vi.fn().mockResolvedValue(
-      response({
-        productVariant: {
-          id: "gid://shopify/ProductVariant/200",
-          title: "Blue",
-          sku: "NEW",
-          price: "1099.00",
-          image: {
-            url: "https://cdn.shopify.com/s/files/1/actual.jpg",
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          node: {
+            id: "gid://shopify/LineItem/10",
+            quantity: 1,
+            currentQuantity: 1,
+            unfulfilledQuantity: 1,
+            merchantEditable: true,
+            variant: { id: "gid://shopify/ProductVariant/100" },
           },
-          product: { id: "gid://shopify/Product/20", title: "New car" },
-        },
-      }),
-    );
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          productVariant: {
+            id: "gid://shopify/ProductVariant/200",
+            title: "Blue",
+            sku: "NEW",
+            price: "1099.00",
+            image: {
+              url: "https://cdn.shopify.com/s/files/1/actual.jpg",
+            },
+            product: { id: "gid://shopify/Product/20", title: "New car" },
+          },
+        }),
+      );
 
     await expect(
       editManagedOrderLine({ graphql } as never, {
@@ -259,7 +286,38 @@ describe("Shopify order manager", () => {
         restock: false,
       }),
     ).rejects.toThrow("not assigned to the replacement variant");
+    expect(graphql).toHaveBeenCalledTimes(2);
+  });
+
+  it("blocks replacement before adding a new variant when the old item is fulfilled", async () => {
+    const graphql = vi.fn().mockResolvedValue(
+      response({
+        node: {
+          id: "gid://shopify/LineItem/10",
+          quantity: 1,
+          currentQuantity: 1,
+          unfulfilledQuantity: 0,
+          merchantEditable: true,
+          variant: { id: "gid://shopify/ProductVariant/100" },
+        },
+      }),
+    );
+
+    await expect(
+      editManagedOrderLine({ graphql } as never, {
+        orderId: "gid://shopify/Order/1",
+        lineItemId: "gid://shopify/LineItem/10",
+        quantity: 1,
+        replacementVariantId: "200",
+        restock: false,
+      }),
+    ).rejects.toThrow("already fulfilled");
+
     expect(graphql).toHaveBeenCalledTimes(1);
+    expect(graphql.mock.calls[0][0]).toContain(
+      "query KdcManagedLineEditability",
+    );
+    expect(graphql.mock.calls[0][0]).not.toContain("orderEditAddVariant");
   });
 
   it("replaces committed shipping lines and commits the new charge", async () => {

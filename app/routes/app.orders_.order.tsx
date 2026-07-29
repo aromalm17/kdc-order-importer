@@ -491,90 +491,119 @@ export default function ManagedOrderDetail() {
         </s-banner>
 
         <div className="kdc-managed-line-list">
-          {order.lineItems.map((line) => (
-            <Form method="post" className="kdc-managed-line-card" key={line.id}>
-              <input type="hidden" name="intent" value="update-line" />
-              <input type="hidden" name="lineItemId" value={line.id} />
-              <div className="kdc-managed-line-current">
-                {line.imageUrl ? (
-                  <img
-                    className="kdc-line-thumbnail"
-                    src={line.imageUrl}
-                    alt=""
-                  />
-                ) : (
-                  <span className="kdc-line-thumbnail kdc-order-thumbnail--empty">
-                    No image
-                  </span>
-                )}
-                <div>
-                  <strong>{line.title}</strong>
-                  <span>
-                    {line.variantTitle || "Default"} · SKU {line.sku || "—"}
-                  </span>
-                  <span>
-                    Current variant:{" "}
-                    {line.variant?.id.replace(
-                      "gid://shopify/ProductVariant/",
-                      "",
-                    ) ?? "Custom item"}
-                  </span>
-                  <span>
-                    Unit price {money(line.unitPrice.amount, currencyCode)} ·
-                    Fulfillable {line.fulfillableQuantity}
-                  </span>
-                  {line.imageUrl ? <code>{line.imageUrl}</code> : null}
-                </div>
-              </div>
-              <div className="kdc-form-grid kdc-line-edit-grid">
-                <label>
-                  Quantity
-                  <input
-                    className="kdc-text-input"
-                    type="number"
-                    min="0"
-                    step="1"
-                    name="quantity"
-                    defaultValue={line.currentQuantity}
-                    required
-                  />
-                  <small>Set to 0 to remove this unfulfilled line.</small>
-                </label>
-                <label>
-                  Replacement variant ID
-                  <input
-                    className="kdc-text-input"
-                    name="replacementVariantId"
-                    list="kdc-variant-ids"
-                    placeholder="Optional numeric or gid:// ID"
-                  />
-                  <small>Leave blank to change quantity only.</small>
-                </label>
-                <label className="kdc-form-span-2">
-                  Expected replacement image link
-                  <input
-                    className="kdc-text-input"
-                    type="url"
-                    name="expectedImageUrl"
-                    placeholder="Optional https://cdn.shopify.com/s/files/..."
-                  />
-                </label>
-              </div>
-              <label className="kdc-checkbox-label">
-                <input type="checkbox" name="restock" />
-                Restock removed quantity when Shopify permits it
-              </label>
-              <button
-                className="kdc-native-button"
-                type="submit"
-                disabled={Boolean(submitting)}
+          {order.lineItems.map((line) => {
+            const fullyUnfulfilled =
+              line.merchantEditable &&
+              line.currentQuantity > 0 &&
+              line.unfulfilledQuantity === line.quantity;
+            const fulfilledQuantity = Math.max(
+              0,
+              line.quantity - line.unfulfilledQuantity,
+            );
+            return (
+              <Form
+                method="post"
+                className="kdc-managed-line-card"
+                key={line.id}
               >
-                {submitting === "update-line"
-                  ? "Updating product…"
-                  : "Update this product"}
-              </button>
-            </Form>
-          ))}
+                <input type="hidden" name="intent" value="update-line" />
+                <input type="hidden" name="lineItemId" value={line.id} />
+                <div className="kdc-managed-line-current">
+                  {line.imageUrl ? (
+                    <img
+                      className="kdc-line-thumbnail"
+                      src={line.imageUrl}
+                      alt=""
+                    />
+                  ) : (
+                    <span className="kdc-line-thumbnail kdc-order-thumbnail--empty">
+                      No image
+                    </span>
+                  )}
+                  <div>
+                    <strong>{line.title}</strong>
+                    <span>
+                      {line.variantTitle || "Default"} · SKU {line.sku || "—"}
+                    </span>
+                    <span>
+                      Current variant:{" "}
+                      {line.variant?.id.replace(
+                        "gid://shopify/ProductVariant/",
+                        "",
+                      ) ?? "Custom item"}
+                    </span>
+                    <span>
+                      Unit price {money(line.unitPrice.amount, currencyCode)} ·
+                      Unfulfilled {line.unfulfilledQuantity} · Fulfilled/locked{" "}
+                      {fulfilledQuantity}
+                    </span>
+                    {line.imageUrl ? <code>{line.imageUrl}</code> : null}
+                  </div>
+                </div>
+                {fullyUnfulfilled ? (
+                  <>
+                    <div className="kdc-form-grid kdc-line-edit-grid">
+                      <label>
+                        Quantity
+                        <input
+                          className="kdc-text-input"
+                          type="number"
+                          min="0"
+                          step="1"
+                          name="quantity"
+                          defaultValue={line.currentQuantity}
+                          required
+                        />
+                        <small>Set to 0 to remove this unfulfilled line.</small>
+                      </label>
+                      <label>
+                        Replacement variant ID
+                        <input
+                          className="kdc-text-input"
+                          name="replacementVariantId"
+                          list="kdc-variant-ids"
+                          placeholder="Optional numeric or gid:// ID"
+                        />
+                        <small>Leave blank to change quantity only.</small>
+                      </label>
+                      <label className="kdc-form-span-2">
+                        Expected replacement image link
+                        <input
+                          className="kdc-text-input"
+                          type="url"
+                          name="expectedImageUrl"
+                          placeholder="Optional https://cdn.shopify.com/s/files/..."
+                        />
+                      </label>
+                    </div>
+                    <label className="kdc-checkbox-label">
+                      <input type="checkbox" name="restock" />
+                      Restock removed quantity when Shopify permits it
+                    </label>
+                    <button
+                      className="kdc-native-button"
+                      type="submit"
+                      disabled={Boolean(submitting)}
+                    >
+                      {submitting === "update-line"
+                        ? "Updating product…"
+                        : "Update this product"}
+                    </button>
+                  </>
+                ) : (
+                  <div className="kdc-locked-line-warning" role="status">
+                    <strong>This product can’t be replaced here.</strong>
+                    <span>
+                      Shopify keeps fulfilled products and their shipment
+                      history. If this item has a fulfillment, open the order in
+                      Shopify Admin, use the fulfilled card’s ⋯ menu to cancel
+                      its fulfillment, then refresh this page.
+                    </span>
+                  </div>
+                )}
+              </Form>
+            );
+          })}
         </div>
         <datalist id="kdc-variant-ids">
           {data.variants.map((variant) => (

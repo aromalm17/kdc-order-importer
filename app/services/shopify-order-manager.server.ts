@@ -38,7 +38,8 @@ export type ManagedOrderLine = {
   sku?: string | null;
   quantity: number;
   currentQuantity: number;
-  fulfillableQuantity: number;
+  unfulfilledQuantity: number;
+  merchantEditable: boolean;
   imageUrl?: string | null;
   unitPrice: Money;
   variant?: {
@@ -192,7 +193,8 @@ const ORDER_DETAIL_QUERY = `#graphql
           sku
           quantity
           currentQuantity
-          fulfillableQuantity
+          unfulfilledQuantity
+          merchantEditable
           image { url }
           discountedUnitPriceSet {
             shopMoney { amount currencyCode }
@@ -373,7 +375,8 @@ export async function getManagedOrder(
           sku?: string | null;
           quantity: number;
           currentQuantity: number;
-          fulfillableQuantity: number;
+          unfulfilledQuantity: number;
+          merchantEditable: boolean;
           image?: { url: string } | null;
           discountedUnitPriceSet: { shopMoney: Money };
           variant?: {
@@ -533,6 +536,7 @@ type CalculatedLine = {
   title: string;
   sku?: string | null;
   quantity: number;
+  editableQuantity?: number;
   variant?: { id: string } | null;
 };
 
@@ -560,6 +564,7 @@ async function beginOrderEdit(admin: AdminApiContext, orderId: string) {
                 title
                 sku
                 quantity
+                editableQuantity
                 variant { id }
               }
             }
@@ -637,6 +642,46 @@ function sameLine(left: CalculatedLine, right: CalculatedLine) {
   );
 }
 
+async function getManagedLineEditability(
+  admin: AdminApiContext,
+  lineItemId: string,
+) {
+  const response = await admin.graphql(
+    `#graphql
+      query KdcManagedLineEditability($id: ID!) {
+        node(id: $id) {
+          ... on LineItem {
+            id
+            quantity
+            currentQuantity
+            unfulfilledQuantity
+            merchantEditable
+            variant { id }
+          }
+        }
+      }
+    `,
+    { variables: { id: lineItemId } },
+  );
+  const data = await readGraphql<{
+    node?: {
+      id: string;
+      quantity: number;
+      currentQuantity: number;
+      unfulfilledQuantity: number;
+      merchantEditable: boolean;
+      variant?: { id: string } | null;
+    } | null;
+  }>(response as Response, "Check line-item editability");
+  return data.node ?? null;
+}
+
+function fulfilledLineError() {
+  return new Error(
+    "This product is already fulfilled, so Shopify must keep it in the order and fulfillment history. Cancel the fulfillment in Shopify first, then refresh this page before replacing or removing the product.",
+  );
+}
+
 export async function editManagedOrderLine(
   admin: AdminApiContext,
   input: {
@@ -657,6 +702,31 @@ export async function editManagedOrderLine(
     : null;
   if (replacementVariantId && input.quantity < 1) {
     throw new Error("A replacement variant needs a quantity of at least one.");
+  }
+
+  const currentLine = await getManagedLineEditability(admin, input.lineItemId);
+  if (!currentLine) {
+    throw new Error("The selected line item no longer exists on this order.");
+  }
+  const replacesVariant =
+    replacementVariantId && replacementVariantId !== currentLine.variant?.id;
+  const fullyUnfulfilled =
+    currentLine.currentQuantity > 0 &&
+    currentLine.unfulfilledQuantity === currentLine.quantity;
+  if ((replacesVariant || input.quantity === 0) && !fullyUnfulfilled) {
+    throw fulfilledLineError();
+  }
+  if (!currentLine.merchantEditable) {
+    throw new Error(
+      "Shopify marks this product as view-only, so it cannot be changed on this order.",
+    );
+  }
+  const lockedQuantity = Math.max(
+    0,
+    currentLine.currentQuantity - currentLine.unfulfilledQuantity,
+  );
+  if (!replacesVariant && input.quantity < lockedQuantity) {
+    throw fulfilledLineError();
   }
 
   if (replacementVariantId) {
@@ -698,9 +768,12 @@ export async function editManagedOrderLine(
     );
   }
 
-  const currentVariantId = originalLine.variant?.id ?? null;
-  const replacesVariant =
-    replacementVariantId && replacementVariantId !== currentVariantId;
+  if (
+    (replacesVariant || input.quantity === 0) &&
+    calculatedLine.editableQuantity !== calculatedLine.quantity
+  ) {
+    throw fulfilledLineError();
+  }
 
   if (replacesVariant) {
     const addResponse = await admin.graphql(

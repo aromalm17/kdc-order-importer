@@ -436,6 +436,21 @@ body {
   gap: 8px;
 }
 
+.kdc-locked-line-warning {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid #f0c36d;
+  border-radius: 8px;
+  color: #5c3b00;
+  background: #fff8e6;
+  line-height: 1.45;
+}
+
+.kdc-locked-line-warning span {
+  font-size: 0.84rem;
+}
+
 .kdc-danger-zone {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 430px);
