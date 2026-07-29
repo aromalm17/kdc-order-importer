@@ -1,0 +1,40 @@
+# Linked production configuration for the existing "Order Import" app.
+client_id = "1eb23742dbeb80cc396227384182b9dc"
+name = "Order Import"
+application_url = "https://keraladiecastcars.lovable.app"
+embedded = true
+
+[access_scopes]
+scopes = "read_products,read_customers,write_customers,read_orders,write_orders,write_order_edits,read_all_orders"
+optional_scopes = []
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://keraladiecastcars.lovable.app/auth/callback",
+  "https://keraladiecastcars.lovable.app/auth/shopify/callback",
+  "https://keraladiecastcars.lovable.app/api/auth/callback"
+]
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = ["app/scopes_update"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/data_request"
+  compliance_topics = ["customers/data_request"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/redact"
+  compliance_topics = ["customers/redact"]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/shop/redact"
+  compliance_topics = ["shop/redact"]
