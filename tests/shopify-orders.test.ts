@@ -33,6 +33,9 @@ describe("Shopify order creation", () => {
       expect.objectContaining({
         variables: expect.objectContaining({
           options: { sendReceipt: false, sendFulfillmentReceipt: false },
+          order: expect.objectContaining({
+            fulfillmentStatus: "FULFILLED",
+          }),
         }),
       }),
     );
@@ -47,6 +50,29 @@ describe("Shopify order creation", () => {
       }),
     ).rejects.toThrow("verified Shopify variant ID");
   });
+
+  it.each(["Unfulfilled", "Awaiting shipment"])(
+    "refuses an incomplete order before GraphQL: %s",
+    async (fulfillmentStatus) => {
+      const graphql = vi.fn();
+
+      await expect(
+        createHistoricalOrder({ graphql } as never, {
+          currency: "INR",
+          fulfillmentStatus,
+          tags: [],
+          lineItems: [
+            {
+              variantId: "gid://shopify/ProductVariant/100",
+              quantity: 1,
+            },
+          ],
+        }),
+      ).rejects.toThrow("Only completed (Fulfilled) orders can be imported");
+
+      expect(graphql).not.toHaveBeenCalled();
+    },
+  );
 
   it("resolves customer names for pending-order emails in one batch", async () => {
     const graphql = vi.fn().mockResolvedValue({

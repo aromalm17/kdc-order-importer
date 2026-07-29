@@ -9,6 +9,7 @@ import {
   getCachedCustomerProfiles,
   getSelectedReadyOrders,
   importReadyOrders,
+  pendingCsv,
   type EphemeralJob,
 } from "../app/services/ephemeral-imports.server";
 
@@ -156,6 +157,25 @@ describe("Selective pending-order import", () => {
     } as EphemeralJob;
 
     expect(getSelectedReadyOrders(job, [])).toEqual([]);
+  });
+
+  it("retains fulfillment status in the pending export", () => {
+    const order = parsedOrder("incomplete");
+    order.fulfillmentStatus = "Unfulfilled";
+    order.lineItems = [
+      {
+        sourceRowNumber: 2,
+        productTitle: "Car",
+        quantity: 1,
+        unitPrice: 949,
+        rawRow: {},
+        issues: [],
+      },
+    ];
+    const csv = pendingCsv({ pending: [order] } as EphemeralJob);
+
+    expect(csv).toContain('"Fulfillment Status"');
+    expect(csv).toContain('"Unfulfilled"');
   });
 
   it("imports and removes only the selected ready order", async () => {

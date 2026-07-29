@@ -232,6 +232,7 @@ export function pendingCsv(job: EphemeralJob) {
     "Source order",
     "Customer email",
     "Processed at",
+    "Fulfillment Status",
     "Product",
     "Variant ID",
     "SKU",
@@ -244,6 +245,7 @@ export function pendingCsv(job: EphemeralJob) {
       order.sourceOrderName ?? order.sourceOrderId,
       order.customerEmail ?? "",
       order.processedAt?.toISOString() ?? "",
+      order.fulfillmentStatus ?? "Fulfilled",
       line.productTitle,
       line.variantId ?? "",
       line.sku ?? "",
@@ -270,6 +272,11 @@ export async function pendingWorkbook(job: EphemeralJob) {
     { header: "Customer", key: "customer", width: 24 },
     { header: "Customer email", key: "email", width: 34 },
     { header: "Processed at", key: "processedAt", width: 23 },
+    {
+      header: "Fulfillment Status",
+      key: "fulfillmentStatus",
+      width: 22,
+    },
     { header: "Product", key: "product", width: 34 },
     { header: "Variant", key: "variant", width: 22 },
     { header: "Variant ID", key: "variantId", width: 24 },
@@ -293,6 +300,7 @@ export async function pendingWorkbook(job: EphemeralJob) {
         customer: order.customerName ?? "",
         email: order.customerEmail ?? "",
         processedAt: order.processedAt?.toISOString() ?? "",
+        fulfillmentStatus: order.fulfillmentStatus ?? "Fulfilled",
         product: line.productTitle,
         variant: line.variantTitle ?? "",
         variantId: line.variantId ?? "",
@@ -308,6 +316,6 @@ export async function pendingWorkbook(job: EphemeralJob) {
     }
   }
   sheet.getColumn("price").numFmt = "₹#,##0.00";
-  sheet.autoFilter = { from: "A1", to: "L1" };
+  sheet.autoFilter = { from: "A1", to: "M1" };
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

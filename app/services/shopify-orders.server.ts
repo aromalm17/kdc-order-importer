@@ -1,4 +1,8 @@
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
+import {
+  isCompletedFulfillmentStatus,
+  normalizeFulfillmentStatus,
+} from "../lib/fulfillment-status";
 
 const ORDER_CREATE = `#graphql
   mutation KdcOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
@@ -258,6 +262,14 @@ export async function createHistoricalOrder(
   if (order.lineItems.some((line) => !line.variantId)) {
     throw new Error("Every line item must have a verified Shopify variant ID.");
   }
+  const fulfillmentStatus = normalizeFulfillmentStatus(
+    order.fulfillmentStatus,
+  );
+  if (!isCompletedFulfillmentStatus(fulfillmentStatus)) {
+    throw new Error(
+      `Fulfillment Status is "${fulfillmentStatus}". Only completed (Fulfilled) orders can be imported.`,
+    );
+  }
   const response = await admin.graphql(ORDER_CREATE, {
     variables: {
       order: {
@@ -266,10 +278,7 @@ export async function createHistoricalOrder(
           : undefined,
         currency: order.currency,
         financialStatus: financialStatus(order.financialStatus),
-        fulfillmentStatus:
-          order.fulfillmentStatus?.toUpperCase() === "FULFILLED"
-            ? "FULFILLED"
-            : undefined,
+        fulfillmentStatus: "FULFILLED",
         processedAt: order.processedAt?.toISOString(),
         note: order.note || "Imported by KDC Order Importer",
         tags: order.tags,

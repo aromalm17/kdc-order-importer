@@ -8,6 +8,10 @@ import type {
   ValidationIssue,
   WorkbookParseResult,
 } from "../lib/import-types";
+import {
+  isCompletedFulfillmentStatus,
+  normalizeFulfillmentStatus,
+} from "../lib/fulfillment-status";
 import { detectMapping, KDC_MAPPING } from "./mapping.server";
 
 const quantitySchema = z.coerce.number().int().positive();
@@ -388,6 +392,25 @@ export async function parseWorkbook(
           severity: "error",
         });
       }
+      const fulfillmentStatuses = mapping.fulfillmentStatus
+        ? rows
+            .map((row) => row[mapping.fulfillmentStatus!])
+            .filter(Boolean)
+            .map(normalizeFulfillmentStatus)
+        : [];
+      const incompleteFulfillmentStatus = fulfillmentStatuses.find(
+        (status) => !isCompletedFulfillmentStatus(status),
+      );
+      const fulfillmentStatus =
+        incompleteFulfillmentStatus ?? "Fulfilled";
+      if (incompleteFulfillmentStatus) {
+        issues.push({
+          code: "INCOMPLETE_FULFILLMENT_STATUS",
+          message: `Fulfillment Status is "${incompleteFulfillmentStatus}". Only completed (Fulfilled) orders can be imported.`,
+          field: "fulfillmentStatus",
+          severity: "error",
+        });
+      }
 
       return {
         sourceOrderId,
@@ -420,7 +443,7 @@ export async function parseWorkbook(
         processedAt: parseDate(processedRaw),
         currency: firstValue(rows, mapping.currency) || "INR",
         financialStatus: firstValue(rows, mapping.financialStatus),
-        fulfillmentStatus: firstValue(rows, mapping.fulfillmentStatus),
+        fulfillmentStatus,
         billingAddress:
           firstValue(rows, mapping.billingAddress) ??
           composedAddress(rows, "Billing"),

@@ -31,4 +31,11 @@ describe("column mapping", () => {
     expect(result.orderName).toBe("Name");
     expect(result.customerName).toBeUndefined();
   });
+
+  it.each(["Fulfillment Status", "Fulfilment Status"])(
+    "detects the fulfillment status column: %s",
+    (header) => {
+      expect(detectMapping([header]).fulfillmentStatus).toBe(header);
+    },
+  );
 });

@@ -63,6 +63,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       email: order.customerEmail ?? "Missing",
       date: order.processedAt?.toISOString() ?? null,
       items: order.lineItems.length,
+      fulfillmentStatus: order.fulfillmentStatus ?? "Fulfilled",
       total: order.lineItems.reduce(
         (sum, item) => sum + item.unitPrice * item.quantity,
         0,
@@ -383,6 +384,7 @@ export default function PreviewOrders() {
                 <th>Date</th>
                 <th>Items</th>
                 <th>Total</th>
+                <th>Fulfillment</th>
                 <th>Status</th>
                 <th>Reason</th>
               </tr>
@@ -448,6 +450,7 @@ export default function PreviewOrders() {
                   </td>
                   <td>{order.items}</td>
                   <td>₹{order.total.toFixed(2)}</td>
+                  <td>{order.fulfillmentStatus}</td>
                   <td>{order.blocked ? "Blocked" : "Ready"}</td>
                   <td className="kdc-issue">{order.issue}</td>
                 </tr>

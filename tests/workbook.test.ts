@@ -65,7 +65,136 @@ describe("workbook parser", () => {
     expect(parsed.orders).toHaveLength(1);
     expect(parsed.orders[0].lineItems).toHaveLength(2);
     expect(parsed.orders[0].customerEmail).toBe("buyer@example.com");
+    expect(parsed.orders[0].fulfillmentStatus).toBe("Fulfilled");
     expect(hasBlockingIssues(parsed.orders[0])).toBe(false);
+  });
+
+  it.each(["", "  FULFILLED  ", "Fulfiled"])(
+    "normalizes a blank or completed fulfillment status to Fulfilled: %j",
+    async (fulfillmentStatus) => {
+      const buffer = await workbookBuffer([
+        [
+          "Name",
+          "Customer: Email",
+          "Fulfillment Status",
+          "Line: Type",
+          "Line: Title",
+          "Line: Image",
+          "Line: Variant ID",
+          "Line: Price",
+          "Line: Quantity",
+        ],
+        [
+          "#1001-A",
+          "buyer@example.com",
+          fulfillmentStatus,
+          "Line Item",
+          "Car",
+          "https://cdn.shopify.com/s/files/1/a.jpg",
+          "10001",
+          949,
+          1,
+        ],
+      ]);
+
+      const parsed = await parseWorkbook(buffer);
+
+      expect(parsed.orders[0].fulfillmentStatus).toBe("Fulfilled");
+      expect(hasBlockingIssues(parsed.orders[0])).toBe(false);
+    },
+  );
+
+  it.each([
+    "Unfulfilled",
+    "UN-FULFILLED",
+    "unfulfiled",
+    "Partially fulfilled",
+    "Awaiting shipment",
+  ])(
+    "blocks an incomplete fulfillment status: %s",
+    async (fulfillmentStatus) => {
+      const buffer = await workbookBuffer([
+        [
+          "Name",
+          "Customer: Email",
+          "Fulfillment Status",
+          "Line: Type",
+          "Line: Title",
+          "Line: Image",
+          "Line: Variant ID",
+          "Line: Price",
+          "Line: Quantity",
+        ],
+        [
+          "#1001-B",
+          "buyer@example.com",
+          fulfillmentStatus,
+          "Line Item",
+          "Car",
+          "https://cdn.shopify.com/s/files/1/a.jpg",
+          "10001",
+          949,
+          1,
+        ],
+      ]);
+
+      const parsed = await parseWorkbook(buffer);
+
+      expect(hasBlockingIssues(parsed.orders[0])).toBe(true);
+      expect(parsed.orders[0].issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "INCOMPLETE_FULFILLMENT_STATUS",
+            field: "fulfillmentStatus",
+            severity: "error",
+          }),
+        ]),
+      );
+    },
+  );
+
+  it("blocks a grouped order when any row is unfulfilled", async () => {
+    const buffer = await workbookBuffer([
+      [
+        "Name",
+        "Customer: Email",
+        "Fulfillment Status",
+        "Line: Type",
+        "Line: Title",
+        "Line: Image",
+        "Line: Variant ID",
+        "Line: Price",
+        "Line: Quantity",
+      ],
+      [
+        "#1001-C",
+        "buyer@example.com",
+        "Fulfilled",
+        "Line Item",
+        "Car A",
+        "https://cdn.shopify.com/s/files/1/a.jpg",
+        "10001",
+        949,
+        1,
+      ],
+      [
+        "#1001-C",
+        "",
+        "Unfulfilled",
+        "Line Item",
+        "Car B",
+        "https://cdn.shopify.com/s/files/1/b.jpg",
+        "10002",
+        1299,
+        1,
+      ],
+    ]);
+
+    const parsed = await parseWorkbook(buffer);
+
+    expect(parsed.orders).toHaveLength(1);
+    expect(parsed.orders[0].fulfillmentStatus).toBe("Unfulfilled");
+    expect(hasBlockingIssues(parsed.orders[0])).toBe(true);
   });
 
   it("blocks the entire order when a line lacks variant or public image", async () => {
