@@ -208,6 +208,54 @@ describe("Selective pending-order import", () => {
     expect(job.status).toBe("PENDING");
   });
 
+  it("passes the Excel unit price to Shopify order creation", async () => {
+    vi.mocked(createHistoricalOrder).mockResolvedValue({
+      id: "gid://shopify/Order/1",
+      name: "#1001",
+    });
+    const order = parsedOrder("ready-with-excel-price");
+    order.lineItems = [
+      {
+        sourceRowNumber: 2,
+        productTitle: "Car",
+        variantId: "gid://shopify/ProductVariant/100",
+        quantity: 2,
+        unitPrice: 649,
+        imageUrl: "https://cdn.shopify.com/s/files/1/car.jpg",
+        rawRow: {},
+        issues: [],
+      },
+    ];
+    const job = {
+      id: "job-price",
+      shop: "example.myshopify.com",
+      fileName: "orders.xlsx",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      totalOrders: 1,
+      importedOrders: 0,
+      status: "PREVIEW",
+      currentMessage: "Ready for review",
+      pending: [order],
+      customerProfiles: new Map(),
+    } satisfies EphemeralJob;
+
+    await importReadyOrders(job, {} as never, [order.deterministicKey]);
+
+    expect(createHistoricalOrder).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        lineItems: [
+          {
+            variantId: "gid://shopify/ProductVariant/100",
+            quantity: 2,
+            unitPrice: 649,
+          },
+        ],
+      }),
+    );
+  });
+
   it("uses the matched customer's default address as imported shipping address", async () => {
     vi.mocked(createHistoricalOrder).mockResolvedValue({
       id: "gid://shopify/Order/1",

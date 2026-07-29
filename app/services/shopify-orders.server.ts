@@ -22,7 +22,11 @@ export type ImportableOrder = {
   note?: string | null;
   tags: string[];
   processedAt?: Date | null;
-  lineItems: { variantId: string | null; quantity: number }[];
+  lineItems: {
+    variantId: string | null;
+    quantity: number;
+    unitPrice: number;
+  }[];
 };
 
 export type ShopifyMailingAddressInput = {
@@ -291,6 +295,15 @@ export async function createHistoricalOrder(
   if (order.lineItems.some((line) => !line.variantId)) {
     throw new Error("Every line item must have a verified Shopify variant ID.");
   }
+  if (
+    order.lineItems.some(
+      (line) => !Number.isFinite(line.unitPrice) || line.unitPrice < 0,
+    )
+  ) {
+    throw new Error(
+      "Every line item must have a valid zero or positive Excel price.",
+    );
+  }
   const fulfillmentStatus = normalizeFulfillmentStatus(order.fulfillmentStatus);
   if (!isCompletedFulfillmentStatus(fulfillmentStatus)) {
     throw new Error(
@@ -313,6 +326,12 @@ export async function createHistoricalOrder(
         lineItems: order.lineItems.map((line) => ({
           variantId: line.variantId,
           quantity: line.quantity,
+          priceSet: {
+            shopMoney: {
+              amount: line.unitPrice,
+              currencyCode: order.currency,
+            },
+          },
         })),
       },
       options: {

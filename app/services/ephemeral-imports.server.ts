@@ -196,6 +196,7 @@ export async function importReadyOrders(
         lineItems: order.lineItems.map((line) => ({
           variantId: line.variantId ?? null,
           quantity: line.quantity,
+          unitPrice: line.unitPrice,
         })),
       });
       job.pending = job.pending.filter((candidate) => candidate !== order);

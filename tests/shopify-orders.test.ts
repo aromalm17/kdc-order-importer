@@ -35,7 +35,11 @@ describe("Shopify order creation", () => {
       financialStatus: "Paid",
       tags: ["KDC-Historical-Import"],
       lineItems: [
-        { variantId: "gid://shopify/ProductVariant/100", quantity: 2 },
+        {
+          variantId: "gid://shopify/ProductVariant/100",
+          quantity: 2,
+          unitPrice: 649,
+        },
       ],
     });
     expect(result.name).toBe("#1001");
@@ -46,6 +50,18 @@ describe("Shopify order creation", () => {
           options: { sendReceipt: false, sendFulfillmentReceipt: false },
           order: expect.objectContaining({
             fulfillmentStatus: "FULFILLED",
+            lineItems: [
+              {
+                variantId: "gid://shopify/ProductVariant/100",
+                quantity: 2,
+                priceSet: {
+                  shopMoney: {
+                    amount: 649,
+                    currencyCode: "INR",
+                  },
+                },
+              },
+            ],
             shippingAddress: {
               firstName: "Aromal",
               lastName: "M",
@@ -68,7 +84,7 @@ describe("Shopify order creation", () => {
       createHistoricalOrder({ graphql: vi.fn() } as never, {
         currency: "INR",
         tags: [],
-        lineItems: [{ variantId: null, quantity: 1 }],
+        lineItems: [{ variantId: null, quantity: 1, unitPrice: 649 }],
       }),
     ).rejects.toThrow("verified Shopify variant ID");
   });
@@ -87,6 +103,7 @@ describe("Shopify order creation", () => {
             {
               variantId: "gid://shopify/ProductVariant/100",
               quantity: 1,
+              unitPrice: 649,
             },
           ],
         }),
@@ -95,6 +112,26 @@ describe("Shopify order creation", () => {
       expect(graphql).not.toHaveBeenCalled();
     },
   );
+
+  it("refuses an invalid Excel price before GraphQL", async () => {
+    const graphql = vi.fn();
+
+    await expect(
+      createHistoricalOrder({ graphql } as never, {
+        currency: "INR",
+        tags: [],
+        lineItems: [
+          {
+            variantId: "gid://shopify/ProductVariant/100",
+            quantity: 1,
+            unitPrice: Number.NaN,
+          },
+        ],
+      }),
+    ).rejects.toThrow("valid zero or positive Excel price");
+
+    expect(graphql).not.toHaveBeenCalled();
+  });
 
   it("resolves customer names for pending-order emails in one batch", async () => {
     const graphql = vi.fn().mockResolvedValue({
