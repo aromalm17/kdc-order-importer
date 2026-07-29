@@ -102,6 +102,17 @@ GraphQL API `2026-07`. The app already has the required `read_orders`,
 `read_all_orders`, `write_orders`, `read_products`, and `write_order_edits`
 scopes.
 
+This feature was deployed successfully on 2026-07-30:
+
+- Source commit: local `93c940d`; deployment-snapshot commit `8f17895`
+- Render deploy: `dep-d9l4qrdbedkc73brsu70`
+- Validation: 54 tests, typecheck, lint, production build, and Shopify
+  `2026-07` GraphQL code generation passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200. An unauthenticated `/app/orders` request returns Shopify's expected 410
+  because embedded app authentication is required.
+- No production order was edited or deleted during verification.
+
 ## Import and validation rules
 
 - A workbook line image is valid only when its URL is HTTPS, the host is
