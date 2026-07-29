@@ -1,4 +1,8 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import type {
+  HeadersFunction,
+  LoaderFunctionArgs,
+  ShouldRevalidateFunctionArgs,
+} from "react-router";
 import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
@@ -11,6 +15,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // eslint-disable-next-line no-undef
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
+
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  defaultShouldRevalidate,
+}: ShouldRevalidateFunctionArgs) {
+  const isPreviewRoute = (pathname: string) =>
+    pathname === "/app/preview" || pathname === "/app/preview/order";
+
+  if (
+    isPreviewRoute(currentUrl.pathname) &&
+    isPreviewRoute(nextUrl.pathname)
+  ) {
+    return false;
+  }
+
+  return defaultShouldRevalidate;
+}
 
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();

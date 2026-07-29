@@ -3,7 +3,11 @@ import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
 import ExcelJS from "exceljs";
 import type { ParsedOrder, WorkbookParseResult } from "../lib/import-types";
 import { hasBlockingIssues } from "./workbook.server";
-import { createHistoricalOrder } from "./shopify-orders.server";
+import {
+  createHistoricalOrder,
+  findCustomerProfilesByEmail,
+  type CustomerVerificationProfile,
+} from "./shopify-orders.server";
 import { verifyOrderVariantImages } from "./variant-verification.server";
 
 export type EphemeralJob = {
@@ -17,6 +21,7 @@ export type EphemeralJob = {
   status: "PREVIEW" | "RUNNING" | "PENDING" | "COMPLETED";
   currentMessage: string;
   pending: ParsedOrder[];
+  customerProfiles: Map<string, CustomerVerificationProfile | null>;
 };
 
 const jobs = new Map<string, EphemeralJob>();
@@ -48,6 +53,7 @@ export function createEphemeralJob(
     status: "PREVIEW",
     currentMessage: "Ready for review",
     pending: result.orders,
+    customerProfiles: new Map(),
   };
   jobs.set(id, job);
   latestByShop.set(shop, id);
@@ -58,6 +64,44 @@ export function getEphemeralJob(shop: string, id?: string | null) {
   cleanup();
   const job = jobs.get(id || latestByShop.get(shop) || "");
   return job?.shop === shop ? job : undefined;
+}
+
+function normalizedEmail(email?: string) {
+  return email?.trim().toLowerCase() || null;
+}
+
+export async function getCachedCustomerProfiles(
+  job: EphemeralJob,
+  admin: AdminApiContext,
+  emails: Array<string | undefined>,
+) {
+  const requestedEmails = [
+    ...new Set(
+      emails
+        .map(normalizedEmail)
+        .filter((email): email is string => Boolean(email)),
+    ),
+  ];
+  const uncachedEmails = requestedEmails.filter(
+    (email) => !job.customerProfiles.has(email),
+  );
+
+  if (uncachedEmails.length) {
+    const fetchedProfiles = await findCustomerProfilesByEmail(
+      admin,
+      uncachedEmails,
+    );
+    for (const [email, profile] of fetchedProfiles) {
+      job.customerProfiles.set(email, profile);
+    }
+    job.updatedAt = new Date();
+  }
+
+  return new Map(
+    requestedEmails
+      .filter((email) => job.customerProfiles.has(email))
+      .map((email) => [email, job.customerProfiles.get(email) ?? null]),
+  );
 }
 
 export function clearEphemeralJob(shop: string, id: string) {

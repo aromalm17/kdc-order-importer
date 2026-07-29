@@ -4,10 +4,10 @@ import { Link, useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
   getSelectedReadyOrders,
+  getCachedCustomerProfiles,
   getEphemeralJob,
   importReadyOrders,
 } from "../services/ephemeral-imports.server";
-import { findCustomerNamesByEmail } from "../services/shopify-orders.server";
 import { hasBlockingIssues } from "../services/workbook.server";
 import {
   getAttachmentFilename,
@@ -20,11 +20,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const id = new URL(request.url).searchParams.get("job");
   const job = getEphemeralJob(session.shop, id);
   if (!job) return { job: null, orders: [] };
-  const customerNames = await findCustomerNamesByEmail(
+  const customerProfiles = await getCachedCustomerProfiles(
+    job,
     admin,
-    job.pending
-      .filter((order) => !order.customerName)
-      .map((order) => order.customerEmail),
+    job.pending.map((order) => order.customerEmail),
   );
   return {
     job: {
@@ -57,7 +56,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
       detailsHref: `/app/preview/order?job=${encodeURIComponent(job.id)}&order=${encodeURIComponent(order.deterministicKey)}`,
       customerName:
         order.customerName?.trim() ||
-        customerNames.get(order.customerEmail?.trim().toLowerCase() ?? "") ||
+        customerProfiles
+          .get(order.customerEmail?.trim().toLowerCase() ?? "")
+          ?.displayName?.trim() ||
         null,
       email: order.customerEmail ?? "Missing",
       date: order.processedAt?.toISOString() ?? null,

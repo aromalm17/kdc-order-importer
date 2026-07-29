@@ -1,8 +1,10 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
-import { getEphemeralJob } from "../services/ephemeral-imports.server";
-import { findCustomerByEmail } from "../services/shopify-orders.server";
+import {
+  getCachedCustomerProfiles,
+  getEphemeralJob,
+} from "../services/ephemeral-imports.server";
 import { hasBlockingIssues } from "../services/workbook.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -17,7 +19,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
   if (!job || !order) {
     return { jobId: job?.id ?? null, order: null };
   }
-  const customer = await findCustomerByEmail(admin, order.customerEmail);
+  const needsCustomerProfile =
+    !order.customerName?.trim() ||
+    !order.customerPhone?.trim() ||
+    !order.shippingAddress?.trim();
+  const customerProfiles = needsCustomerProfile
+    ? await getCachedCustomerProfiles(job, admin, [order.customerEmail])
+    : new Map();
+  const customer = customerProfiles.get(
+    order.customerEmail?.trim().toLowerCase() ?? "",
+  );
   const shippingAddress = order.shippingAddress ?? customer?.defaultAddress;
 
   return {
@@ -69,6 +80,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function PendingOrderDetail() {
   const data = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
   const backHref = data.jobId
     ? `/app/preview?job=${encodeURIComponent(data.jobId)}`
     : "/app/preview";
@@ -81,7 +93,9 @@ export default function PendingOrderDetail() {
             It may have imported successfully or the temporary import may have
             expired.
           </s-paragraph>
-          <s-button href={backHref}>Back to pending orders</s-button>
+          <s-button onClick={() => navigate(backHref)}>
+            Back to pending orders
+          </s-button>
         </s-empty-state>
       </s-page>
     );
@@ -94,7 +108,10 @@ export default function PendingOrderDetail() {
 
   return (
     <s-page heading={`Order ${data.order.source}`}>
-      <s-button slot="secondary-actions" href={backHref}>
+      <s-button
+        slot="secondary-actions"
+        onClick={() => navigate(backHref)}
+      >
         Back to pending orders
       </s-button>
 
@@ -206,6 +223,7 @@ export default function PendingOrderDetail() {
                           className="kdc-line-thumbnail"
                           src={line.imageUrl}
                           alt=""
+                          loading="lazy"
                         />
                       ) : (
                         <span className="kdc-line-thumbnail kdc-order-thumbnail--empty">

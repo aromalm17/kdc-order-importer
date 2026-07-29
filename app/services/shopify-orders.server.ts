@@ -126,6 +126,21 @@ export async function findCustomerNamesByEmail(
   admin: AdminApiContext,
   emails: Array<string | undefined>,
 ) {
+  const profiles = await findCustomerProfilesByEmail(admin, emails);
+  const customerNames = new Map<string, string>();
+  for (const [email, profile] of profiles) {
+    const displayName = profile?.displayName?.trim();
+    if (displayName && displayName.toLowerCase() !== email) {
+      customerNames.set(email, displayName);
+    }
+  }
+  return customerNames;
+}
+
+export async function findCustomerProfilesByEmail(
+  admin: AdminApiContext,
+  emails: Array<string | undefined>,
+) {
   const uniqueEmails = [
     ...new Set(
       emails
@@ -133,7 +148,10 @@ export async function findCustomerNamesByEmail(
         .filter((email): email is string => Boolean(email)),
     ),
   ];
-  const customerNames = new Map<string, string>();
+  const customerProfiles = new Map<
+    string,
+    CustomerVerificationProfile | null
+  >();
 
   for (let offset = 0; offset < uniqueEmails.length; offset += 50) {
     const batch = uniqueEmails.slice(offset, offset + 50);
@@ -151,6 +169,19 @@ export async function findCustomerNamesByEmail(
         (_, index) => `
           customer${index}: customerByIdentifier(identifier: $identifier${index}) {
             displayName
+            defaultEmailAddress { emailAddress }
+            defaultPhoneNumber { phoneNumber }
+            defaultAddress {
+              name
+              company
+              address1
+              address2
+              city
+              province
+              zip
+              country
+              phone
+            }
           }
         `,
       )
@@ -158,28 +189,54 @@ export async function findCustomerNamesByEmail(
 
     try {
       const response = await admin.graphql(
-        `query KdcCustomerNames(${variableDefinitions}) {
+        `query KdcCustomerProfiles(${variableDefinitions}) {
           ${selections}
         }`,
         { variables },
       );
       const json = (await response.json()) as {
-        data?: Record<string, { displayName?: string } | null>;
+        data?: Record<
+          string,
+          | {
+              displayName?: string;
+              defaultEmailAddress?: { emailAddress?: string } | null;
+              defaultPhoneNumber?: { phoneNumber?: string } | null;
+              defaultAddress?: {
+                name?: string | null;
+                company?: string | null;
+                address1?: string | null;
+                address2?: string | null;
+                city?: string | null;
+                province?: string | null;
+                zip?: string | null;
+                country?: string | null;
+                phone?: string | null;
+              } | null;
+            }
+          | null
+        >;
       };
 
       batch.forEach((email, index) => {
-        const displayName =
-          json.data?.[`customer${index}`]?.displayName?.trim();
-        if (displayName && displayName.toLowerCase() !== email) {
-          customerNames.set(email, displayName);
-        }
+        const customer = json.data?.[`customer${index}`];
+        customerProfiles.set(
+          email,
+          customer
+            ? {
+                displayName: customer.displayName,
+                email: customer.defaultEmailAddress?.emailAddress,
+                phone: customer.defaultPhoneNumber?.phoneNumber,
+                defaultAddress: formatMailingAddress(customer.defaultAddress),
+              }
+            : null,
+        );
       });
     } catch {
-      // Keep the pending-order preview available if customer enrichment fails.
+      // Keep the import preview available if customer enrichment fails.
     }
   }
 
-  return customerNames;
+  return customerProfiles;
 }
 
 function financialStatus(status?: string | null) {

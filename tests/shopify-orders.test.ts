@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createHistoricalOrder,
   findCustomerNamesByEmail,
+  findCustomerProfilesByEmail,
   verifyVariants,
 } from "../app/services/shopify-orders.server";
 
@@ -74,6 +75,92 @@ describe("Shopify order creation", () => {
           identifier1: { emailAddress: "roshan@example.com" },
         },
       },
+    );
+  });
+
+  it("resolves complete customer profiles and formats the default address", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          customer0: {
+            displayName: "Aromal M",
+            defaultEmailAddress: { emailAddress: "buyer@example.com" },
+            defaultPhoneNumber: { phoneNumber: "+919645260931" },
+            defaultAddress: {
+              name: "Aromal M",
+              company: null,
+              address1: "Pavithram",
+              address2: "Kaloliparamba",
+              city: "Kozhikode",
+              province: "Kerala",
+              zip: "673016",
+              country: "India",
+              phone: "+919645260931",
+            },
+          },
+        },
+      }),
+    });
+
+    const profiles = await findCustomerProfilesByEmail(
+      { graphql } as never,
+      [" Buyer@Example.com ", "buyer@example.com"],
+    );
+
+    expect(profiles.get("buyer@example.com")).toEqual({
+      displayName: "Aromal M",
+      email: "buyer@example.com",
+      phone: "+919645260931",
+      defaultAddress:
+        "Aromal M, Pavithram, Kaloliparamba, Kozhikode, Kerala, 673016, India, +919645260931",
+    });
+    expect(graphql).toHaveBeenCalledTimes(1);
+    expect(graphql.mock.calls[0][1]).toEqual({
+      variables: {
+        identifier0: { emailAddress: "buyer@example.com" },
+      },
+    });
+  });
+
+  it("batches complete customer profile lookups in groups of 50", async () => {
+    const graphql = vi.fn().mockImplementation(
+      async (
+        _query: string,
+        options: { variables: Record<string, { emailAddress: string }> },
+      ) => ({
+        json: async () => ({
+          data: Object.fromEntries(
+            Object.entries(options.variables).map(
+              ([identifier, { emailAddress }]) => [
+                identifier.replace("identifier", "customer"),
+                {
+                  displayName: `Customer ${emailAddress}`,
+                  defaultEmailAddress: { emailAddress },
+                },
+              ],
+            ),
+          ),
+        }),
+      }),
+    );
+    const emails = Array.from(
+      { length: 51 },
+      (_, index) => `customer-${index}@example.com`,
+    );
+
+    const profiles = await findCustomerProfilesByEmail(
+      { graphql } as never,
+      emails,
+    );
+
+    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(
+      Object.keys(graphql.mock.calls[0][1].variables),
+    ).toHaveLength(50);
+    expect(Object.keys(graphql.mock.calls[1][1].variables)).toHaveLength(1);
+    expect(profiles).toHaveLength(51);
+    expect(profiles.get("customer-50@example.com")?.email).toBe(
+      "customer-50@example.com",
     );
   });
 
