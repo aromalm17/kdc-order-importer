@@ -8,6 +8,7 @@ import {
 } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
+  getSelectedReadyOrders,
   getEphemeralJob,
   importReadyOrders,
 } from "../services/ephemeral-imports.server";
@@ -70,8 +71,33 @@ export async function action({ request }: ActionFunctionArgs) {
   const form = await request.formData();
   const job = getEphemeralJob(session.shop, String(form.get("jobId") || ""));
   if (!job) return Response.json({ error: "Import not found." }, { status: 404 });
-  void importReadyOrders(job, admin);
-  return Response.json({ started: true });
+  if (job.status === "RUNNING") {
+    return Response.json(
+      { error: "An import is already running." },
+      { status: 409 },
+    );
+  }
+  const selectedOrderKeys = [
+    ...new Set(
+      form
+        .getAll("selectedOrderKey")
+        .map(String)
+        .map((key) => key.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const selectedReadyOrders = getSelectedReadyOrders(job, selectedOrderKeys);
+  if (!selectedReadyOrders.length) {
+    return Response.json(
+      { error: "Select at least one ready order." },
+      { status: 400 },
+    );
+  }
+  void importReadyOrders(job, admin, selectedOrderKeys);
+  return Response.json({
+    started: true,
+    selectedOrders: selectedReadyOrders.length,
+  });
 }
 
 export default function PreviewOrders() {
@@ -79,9 +105,26 @@ export default function PreviewOrders() {
   const importer = useFetcher();
   const revalidator = useRevalidator();
   const confirmationDialog = useRef<HTMLDialogElement>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const [confirmation, setConfirmation] = useState("");
+  const [selectedOrderKeys, setSelectedOrderKeys] = useState<string[]>([]);
   const importing =
     importer.state !== "idle" || data.job?.status === "RUNNING";
+  const readyOrderKeys = data.orders
+    .filter((order) => !order.blocked)
+    .map((order) => order.key);
+  const readyOrderKeySignature = readyOrderKeys.join("\u001f");
+  const readyOrderKeySet = new Set(readyOrderKeys);
+  const selectedReadyOrderKeys = selectedOrderKeys.filter((key) =>
+    readyOrderKeySet.has(key),
+  );
+  const selectedOrderKeySet = new Set(selectedReadyOrderKeys);
+  const selectedCount = selectedReadyOrderKeys.length;
+  const allReadySelected =
+    readyOrderKeys.length > 0 && selectedCount === readyOrderKeys.length;
+  const importerError = (
+    importer.data as { error?: string } | undefined
+  )?.error;
 
   useEffect(() => {
     if (!importing) return;
@@ -89,17 +132,53 @@ export default function PreviewOrders() {
     return () => window.clearInterval(timer);
   }, [importing, revalidator]);
 
+  useEffect(() => {
+    const available = new Set(
+      readyOrderKeySignature
+        ? readyOrderKeySignature.split("\u001f")
+        : [],
+    );
+    setSelectedOrderKeys((current) => {
+      const next = current.filter((key) => available.has(key));
+      return next.length === current.length ? current : next;
+    });
+  }, [readyOrderKeySignature]);
+
+  useEffect(() => {
+    if (!selectAllRef.current) return;
+    selectAllRef.current.indeterminate =
+      selectedCount > 0 && selectedCount < readyOrderKeys.length;
+  }, [readyOrderKeys.length, selectedCount]);
+
   if (!data.job) {
     return <s-page heading="Pending orders"><s-empty-state heading="No active import"><s-button href="/app/import/new">Upload workbook</s-button></s-empty-state></s-page>;
   }
   const confirmationMatches = confirmation.trim().toUpperCase() === "YES";
   const pendingExcelHref = `/app/api/export-pending-xlsx?job=${encodeURIComponent(data.job.id)}`;
 
+  function toggleOrder(key: string, checked: boolean) {
+    setSelectedOrderKeys((current) => {
+      if (checked) {
+        return current.includes(key) ? current : [...current, key];
+      }
+      return current.filter((candidate) => candidate !== key);
+    });
+  }
+
+  function toggleAllReadyOrders(checked: boolean) {
+    setSelectedOrderKeys(checked ? readyOrderKeys : []);
+  }
+
   function startImport() {
-    if (!confirmationMatches || !data.job?.readyOrders) return;
+    if (!confirmationMatches || !data.job || selectedCount === 0) return;
+    const form = new FormData();
+    form.append("jobId", data.job.id);
+    selectedReadyOrderKeys.forEach((key) =>
+      form.append("selectedOrderKey", key),
+    );
     confirmationDialog.current?.close();
     setConfirmation("");
-    importer.submit({ jobId: data.job.id }, { method: "post" });
+    importer.submit(form, { method: "post" });
   }
 
   return (
@@ -108,19 +187,25 @@ export default function PreviewOrders() {
         <div className="kdc-import-header">
           <h2>Ephemeral import status</h2>
           <div className="kdc-import-actions">
+            <span className="kdc-selected-count" aria-live="polite">
+              {selectedCount} of {data.job.readyOrders} selected
+            </span>
             <s-button href={pendingExcelHref}>Download pending Excel</s-button>
             <s-button
               variant="primary"
-              disabled={importing || data.job.readyOrders === 0}
+              disabled={importing || selectedCount === 0}
               onClick={() => confirmationDialog.current?.showModal()}
             >
-              {importing ? "Importing…" : "Import ready orders"}
+              {importing ? "Importing…" : "Import selected orders"}
             </s-button>
           </div>
         </div>
         <s-banner tone={data.job.status === "COMPLETED" ? "success" : "info"}>
           {data.job.currentMessage}. Successfully imported orders are removed immediately.
         </s-banner>
+        {importerError ? (
+          <s-banner tone="critical">{importerError}</s-banner>
+        ) : null}
         <s-grid gridTemplateColumns="repeat(auto-fit, minmax(160px, 1fr))" gap="base">
           <s-box padding="base" borderWidth="base" borderRadius="base"><s-text>Original orders</s-text><s-heading>{data.job.totalOrders}</s-heading></s-box>
           <s-box padding="base" borderWidth="base" borderRadius="base"><s-text>Imported</s-text><s-heading>{data.job.importedOrders}</s-heading></s-box>
@@ -135,7 +220,7 @@ export default function PreviewOrders() {
         <div className="kdc-confirm-dialog__header">
           <div>
             <span className="kdc-order-detail-label">Final confirmation</span>
-            <h2>Import ready orders?</h2>
+            <h2>Import selected orders?</h2>
           </div>
           <button
             className="kdc-dialog-close"
@@ -152,8 +237,8 @@ export default function PreviewOrders() {
         </p>
         <div className="kdc-confirm-counts">
           <div className="kdc-confirm-count kdc-confirm-count--ready">
-            <span>Ready orders</span>
-            <strong>{data.job.readyOrders}</strong>
+            <span>Selected ready orders</span>
+            <strong>{selectedCount}</strong>
           </div>
           <div className="kdc-confirm-count kdc-confirm-count--blocked">
             <span>Missing/invalid image orders</span>
@@ -165,7 +250,7 @@ export default function PreviewOrders() {
           </div>
         </div>
         <label className="kdc-confirm-label" htmlFor="confirm-import">
-          Type <strong>YES</strong> to import {data.job.readyOrders} ready
+          Type <strong>YES</strong> to import {selectedCount} selected
           order(s)
         </label>
         <input
@@ -180,7 +265,7 @@ export default function PreviewOrders() {
           <s-button href={pendingExcelHref}>Download pending Excel</s-button>
           <s-button
             variant="primary"
-            disabled={!confirmationMatches || data.job.readyOrders === 0}
+            disabled={!confirmationMatches || selectedCount === 0}
             onClick={startImport}
           >
             Confirm import
@@ -190,9 +275,52 @@ export default function PreviewOrders() {
       <s-section heading="Pending only">
         <div style={{ overflowX: "auto" }}>
           <table className="kdc-table">
-            <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th>Reason</th></tr></thead>
+            <thead>
+              <tr>
+                <th className="kdc-select-cell">
+                  <label className="kdc-selection-control">
+                    <input
+                      ref={selectAllRef}
+                      className="kdc-order-checkbox"
+                      type="checkbox"
+                      checked={allReadySelected}
+                      disabled={importing || readyOrderKeys.length === 0}
+                      onChange={(event) =>
+                        toggleAllReadyOrders(event.currentTarget.checked)
+                      }
+                    />
+                    <span>Select all</span>
+                  </label>
+                </th>
+                <th>Order</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th>Reason</th>
+              </tr>
+            </thead>
             <tbody>{data.orders.map((order) => (
-              <tr key={order.key}>
+              <tr
+                key={order.key}
+                className={
+                  selectedOrderKeySet.has(order.key)
+                    ? "kdc-table-row--selected"
+                    : undefined
+                }
+              >
+                <td className="kdc-select-cell">
+                  <input
+                    className="kdc-order-checkbox"
+                    type="checkbox"
+                    checked={selectedOrderKeySet.has(order.key)}
+                    disabled={importing || order.blocked}
+                    aria-label={`Select ${order.source}`}
+                    title={
+                      order.blocked
+                        ? "Resolve this order's errors before selecting it"
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      toggleOrder(order.key, event.currentTarget.checked)
+                    }
+                  />
+                </td>
                 <td>
                   <div className="kdc-order-source">
                     {order.imageUrl ? (

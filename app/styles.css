@@ -182,6 +182,20 @@ body {
   margin: 0;
 }
 
+.kdc-selected-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #d8d8d8;
+  border-radius: 999px;
+  color: #303030;
+  background: #f3f3f3;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .kdc-confirm-dialog {
   box-sizing: border-box;
   width: min(620px, calc(100vw - 32px));
@@ -299,6 +313,36 @@ body {
   border-bottom: 1px solid #e1e3e5;
   text-align: left;
   vertical-align: top;
+}
+
+.kdc-table .kdc-select-cell {
+  width: 1%;
+  padding-right: 4px;
+  white-space: nowrap;
+}
+
+.kdc-selection-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.kdc-order-checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #303030;
+  cursor: pointer;
+}
+
+.kdc-order-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.kdc-table-row--selected td {
+  background: #f1f8ff;
 }
 
 .kdc-table th {

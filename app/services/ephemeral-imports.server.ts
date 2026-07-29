@@ -77,16 +77,40 @@ export function shopSummary(shop: string) {
   };
 }
 
+export function getSelectedReadyOrders(
+  job: EphemeralJob,
+  selectedOrderKeys: readonly string[],
+) {
+  const selected = new Set(
+    selectedOrderKeys.map((key) => key.trim()).filter(Boolean),
+  );
+  if (!selected.size) return [];
+  return job.pending.filter(
+    (order) =>
+      selected.has(order.deterministicKey) && !hasBlockingIssues(order),
+  );
+}
+
 export async function importReadyOrders(
   job: EphemeralJob,
   admin: AdminApiContext,
+  selectedOrderKeys: readonly string[],
 ) {
-  if (job.status === "RUNNING") return;
+  if (job.status === "RUNNING") return 0;
+  const candidates = getSelectedReadyOrders(job, selectedOrderKeys);
+  if (!candidates.length) {
+    job.currentMessage = "No selected ready orders to import";
+    job.updatedAt = new Date();
+    return 0;
+  }
+
   job.status = "RUNNING";
-  job.currentMessage = "Importing ready orders";
+  job.currentMessage = `Importing ${candidates.length} selected order${
+    candidates.length === 1 ? "" : "s"
+  }`;
   job.updatedAt = new Date();
 
-  const candidates = job.pending.filter((order) => !hasBlockingIssues(order));
+  let importedThisRun = 0;
   for (const order of candidates) {
     try {
       await createHistoricalOrder(admin, {
@@ -96,10 +120,9 @@ export async function importReadyOrders(
           quantity: line.quantity,
         })),
       });
-      job.pending = job.pending.filter(
-        (candidate) => candidate.deterministicKey !== order.deterministicKey,
-      );
+      job.pending = job.pending.filter((candidate) => candidate !== order);
       job.importedOrders += 1;
+      importedThisRun += 1;
       job.currentMessage = `Imported ${job.importedOrders}; ${job.pending.length} pending`;
     } catch (error) {
       order.issues = [
@@ -117,9 +140,12 @@ export async function importReadyOrders(
 
   job.status = job.pending.length ? "PENDING" : "COMPLETED";
   job.currentMessage = job.pending.length
-    ? `${job.pending.length} orders remain pending`
-    : "All ready orders imported successfully";
+    ? `Imported ${importedThisRun} selected order${
+        importedThisRun === 1 ? "" : "s"
+      }; ${job.pending.length} remain pending`
+    : "All selected orders imported successfully";
   job.updatedAt = new Date();
+  return importedThisRun;
 }
 
 function csv(value: unknown) {
