@@ -328,6 +328,19 @@ body {
   justify-content: flex-end;
 }
 
+.kdc-preorder-message-preview {
+  padding: 14px 16px;
+  border: 1px solid #c9c9c9;
+  border-radius: 9px;
+  color: #303030;
+  background: #f7f7f7;
+  line-height: 1.5;
+}
+
+.kdc-preorder-message-preview span {
+  color: #616161;
+}
+
 .kdc-managed-inline-form {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(160px, 240px) auto;

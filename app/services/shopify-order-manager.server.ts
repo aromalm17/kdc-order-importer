@@ -83,6 +83,8 @@ export type ManagedShopifyOrder = {
   shippingTotal: Money;
   total: Money;
   outstanding: Money;
+  preorderEta?: string | null;
+  preorderPendingPrice?: string | null;
 };
 
 export type VariantSearchResult = {
@@ -228,6 +230,18 @@ const ORDER_DETAIL_QUERY = `#graphql
       }
       totalOutstandingSet {
         shopMoney { amount currencyCode }
+      }
+      preorderEta: metafield(
+        namespace: "custom"
+        key: "preorder_eta"
+      ) {
+        value
+      }
+      preorderPendingPrice: metafield(
+        namespace: "custom"
+        key: "preorder_pending_price"
+      ) {
+        value
       }
     }
   }
@@ -399,6 +413,8 @@ export async function getManagedOrder(
       totalShippingPriceSet: { shopMoney: Money };
       currentTotalPriceSet: { shopMoney: Money };
       totalOutstandingSet: { shopMoney: Money };
+      preorderEta?: { value: string } | null;
+      preorderPendingPrice?: { value: string } | null;
     } | null;
   }>(response as Response, "Load order");
 
@@ -426,6 +442,8 @@ export async function getManagedOrder(
     shippingTotal: shopMoney(order.totalShippingPriceSet),
     total: shopMoney(order.currentTotalPriceSet),
     outstanding: shopMoney(order.totalOutstandingSet),
+    preorderEta: order.preorderEta?.value ?? null,
+    preorderPendingPrice: order.preorderPendingPrice?.value ?? null,
   };
 }
 
@@ -529,6 +547,263 @@ export async function updateManagedOrderContact(
     throw new Error("Update order: Shopify returned no updated order.");
   }
   return data.orderUpdate.order;
+}
+
+const PREORDER_METAFIELD_NAMESPACE = "custom";
+const PREORDER_METAFIELD_DEFINITIONS = [
+  {
+    key: "preorder_eta",
+    name: "Preorder ETA",
+    type: "single_line_text_field",
+    description:
+      'ETA inserted into "Arriving {ETA}. Pay the remaining {amount} before dispatch."',
+  },
+  {
+    key: "preorder_pending_price",
+    name: "Preorder pending price",
+    type: "number_decimal",
+    description:
+      "Remaining preorder amount the customer must pay before dispatch.",
+  },
+] as const;
+
+async function ensurePreorderMetafieldDefinitions(admin: AdminApiContext) {
+  const response = await admin.graphql(
+    `#graphql
+      query KdcPreorderMetafieldDefinitions {
+        eta: metafieldDefinition(
+          identifier: {
+            ownerType: ORDER
+            namespace: "custom"
+            key: "preorder_eta"
+          }
+        ) {
+          key
+          type { name }
+          access { customerAccount }
+        }
+        pendingPrice: metafieldDefinition(
+          identifier: {
+            ownerType: ORDER
+            namespace: "custom"
+            key: "preorder_pending_price"
+          }
+        ) {
+          key
+          type { name }
+          access { customerAccount }
+        }
+      }
+    `,
+  );
+  const data = await readGraphql<{
+    eta?: {
+      key: string;
+      type: { name: string };
+      access: { customerAccount: string };
+    } | null;
+    pendingPrice?: {
+      key: string;
+      type: { name: string };
+      access: { customerAccount: string };
+    } | null;
+  }>(response as Response, "Load preorder field definitions");
+  const current = new Map(
+    [data.eta, data.pendingPrice]
+      .filter(
+        (
+          definition,
+        ): definition is {
+          key: string;
+          type: { name: string };
+          access: { customerAccount: string };
+        } => Boolean(definition),
+      )
+      .map((definition) => [definition.key, definition]),
+  );
+
+  for (const definition of PREORDER_METAFIELD_DEFINITIONS) {
+    const existing = current.get(definition.key);
+    if (existing && existing.type.name !== definition.type) {
+      throw new Error(
+        `Order metafield custom.${definition.key} must use type ${definition.type}.`,
+      );
+    }
+    if (!existing) {
+      const createResponse = await admin.graphql(
+        `#graphql
+          mutation KdcCreatePreorderMetafieldDefinition(
+            $definition: MetafieldDefinitionInput!
+          ) {
+            metafieldDefinitionCreate(definition: $definition) {
+              createdDefinition { id key }
+              userErrors { field message code }
+            }
+          }
+        `,
+        {
+          variables: {
+            definition: {
+              ownerType: "ORDER",
+              namespace: PREORDER_METAFIELD_NAMESPACE,
+              key: definition.key,
+              name: definition.name,
+              description: definition.description,
+              type: definition.type,
+              pin: true,
+              access: {
+                admin: "PUBLIC_READ_WRITE",
+                customerAccount: "READ",
+              },
+            },
+          },
+        },
+      );
+      const createData = await readGraphql<{
+        metafieldDefinitionCreate: {
+          createdDefinition?: { id: string; key: string } | null;
+          userErrors: UserError[];
+        };
+      }>(createResponse as Response, "Create preorder field definition");
+      assertNoUserErrors(
+        createData.metafieldDefinitionCreate.userErrors,
+        "Create preorder field definition",
+      );
+      if (!createData.metafieldDefinitionCreate.createdDefinition) {
+        throw new Error(
+          "Create preorder field definition: Shopify returned no definition.",
+        );
+      }
+      continue;
+    }
+    if (
+      existing.access.customerAccount !== "READ" &&
+      existing.access.customerAccount !== "READ_WRITE"
+    ) {
+      const updateResponse = await admin.graphql(
+        `#graphql
+          mutation KdcExposePreorderMetafieldDefinition(
+            $definition: MetafieldDefinitionUpdateInput!
+          ) {
+            metafieldDefinitionUpdate(definition: $definition) {
+              updatedDefinition { id key }
+              userErrors { field message code }
+            }
+          }
+        `,
+        {
+          variables: {
+            definition: {
+              ownerType: "ORDER",
+              namespace: PREORDER_METAFIELD_NAMESPACE,
+              key: definition.key,
+              access: { customerAccount: "READ" },
+            },
+          },
+        },
+      );
+      const updateData = await readGraphql<{
+        metafieldDefinitionUpdate: {
+          updatedDefinition?: { id: string; key: string } | null;
+          userErrors: UserError[];
+        };
+      }>(updateResponse as Response, "Expose preorder field definition");
+      assertNoUserErrors(
+        updateData.metafieldDefinitionUpdate.userErrors,
+        "Expose preorder field definition",
+      );
+    }
+  }
+}
+
+export async function updateManagedOrderPreorder(
+  admin: AdminApiContext,
+  orderId: string,
+  input: { eta: string; pendingPrice: string },
+) {
+  const eta = input.eta.trim();
+  const pendingPriceText = input.pendingPrice.trim().replaceAll(",", "");
+  if (!eta && !pendingPriceText) {
+    const response = await admin.graphql(
+      `#graphql
+        mutation KdcClearManagedOrderPreorder(
+          $metafields: [MetafieldIdentifierInput!]!
+        ) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
+            userErrors { field message }
+          }
+        }
+      `,
+      {
+        variables: {
+          metafields: PREORDER_METAFIELD_DEFINITIONS.map((definition) => ({
+            ownerId: orderId,
+            namespace: PREORDER_METAFIELD_NAMESPACE,
+            key: definition.key,
+          })),
+        },
+      },
+    );
+    const data = await readGraphql<{
+      metafieldsDelete: { userErrors: UserError[] };
+    }>(response as Response, "Clear preorder message");
+    assertNoUserErrors(
+      data.metafieldsDelete.userErrors,
+      "Clear preorder message",
+    );
+    return;
+  }
+  if (!eta || !pendingPriceText) {
+    throw new Error(
+      "Enter both the preorder ETA and pending price, or clear both fields.",
+    );
+  }
+  if (eta.length > 120) {
+    throw new Error("Preorder ETA must be 120 characters or fewer.");
+  }
+  const pendingPrice = Number(pendingPriceText);
+  if (!Number.isFinite(pendingPrice) || pendingPrice < 0) {
+    throw new Error("Pending price must be zero or a positive amount.");
+  }
+
+  await ensurePreorderMetafieldDefinitions(admin);
+  const response = await admin.graphql(
+    `#graphql
+      mutation KdcUpdateManagedOrderPreorder(
+        $metafields: [MetafieldsSetInput!]!
+      ) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { id namespace key value }
+          userErrors { field message code }
+        }
+      }
+    `,
+    {
+      variables: {
+        metafields: [
+          {
+            ownerId: orderId,
+            namespace: PREORDER_METAFIELD_NAMESPACE,
+            key: "preorder_eta",
+            type: "single_line_text_field",
+            value: eta,
+          },
+          {
+            ownerId: orderId,
+            namespace: PREORDER_METAFIELD_NAMESPACE,
+            key: "preorder_pending_price",
+            type: "number_decimal",
+            value: pendingPrice.toFixed(2),
+          },
+        ],
+      },
+    },
+  );
+  const data = await readGraphql<{
+    metafieldsSet: { userErrors: UserError[] };
+  }>(response as Response, "Update preorder message");
+  assertNoUserErrors(data.metafieldsSet.userErrors, "Update preorder message");
 }
 
 type CalculatedLine = {

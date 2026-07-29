@@ -5,6 +5,7 @@ import {
   permanentlyDeleteManagedOrder,
   replaceManagedShippingCharge,
   updateManagedOrderContact,
+  updateManagedOrderPreorder,
 } from "../app/services/shopify-order-manager.server";
 
 function response(data: unknown) {
@@ -128,6 +129,92 @@ describe("Shopify order manager", () => {
     expect(variables.input.shippingAddress).not.toHaveProperty("countryCodeV2");
     expect(variables.input.shippingAddress).not.toHaveProperty("country");
     expect(variables.input.shippingAddress).not.toHaveProperty("province");
+  });
+
+  it("stores the preorder ETA and pending price as order metafields only", async () => {
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          eta: {
+            key: "preorder_eta",
+            type: { name: "single_line_text_field" },
+            access: { customerAccount: "READ" },
+          },
+          pendingPrice: {
+            key: "preorder_pending_price",
+            type: { name: "number_decimal" },
+            access: { customerAccount: "READ" },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          metafieldsSet: {
+            metafields: [
+              {
+                id: "gid://shopify/Metafield/1",
+                namespace: "custom",
+                key: "preorder_eta",
+                value: "first week of August",
+              },
+              {
+                id: "gid://shopify/Metafield/2",
+                namespace: "custom",
+                key: "preorder_pending_price",
+                value: "2100.00",
+              },
+            ],
+            userErrors: [],
+          },
+        }),
+      );
+
+    await updateManagedOrderPreorder(
+      { graphql } as never,
+      "gid://shopify/Order/1",
+      {
+        eta: " first week of August ",
+        pendingPrice: "2,100",
+      },
+    );
+
+    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(graphql.mock.calls[1][0]).toContain("metafieldsSet");
+    expect(graphql.mock.calls[1][0]).not.toContain("productUpdate");
+    expect(graphql.mock.calls[1][1].variables.metafields).toEqual([
+      {
+        ownerId: "gid://shopify/Order/1",
+        namespace: "custom",
+        key: "preorder_eta",
+        type: "single_line_text_field",
+        value: "first week of August",
+      },
+      {
+        ownerId: "gid://shopify/Order/1",
+        namespace: "custom",
+        key: "preorder_pending_price",
+        type: "number_decimal",
+        value: "2100.00",
+      },
+    ]);
+  });
+
+  it("requires both preorder message fields without calling Shopify", async () => {
+    const graphql = vi.fn();
+
+    await expect(
+      updateManagedOrderPreorder(
+        { graphql } as never,
+        "gid://shopify/Order/1",
+        {
+          eta: "first week of August",
+          pendingPrice: "",
+        },
+      ),
+    ).rejects.toThrow("Enter both the preorder ETA and pending price");
+
+    expect(graphql).not.toHaveBeenCalled();
   });
 
   it("replaces a line item with a verified variant and suppresses notification", async () => {

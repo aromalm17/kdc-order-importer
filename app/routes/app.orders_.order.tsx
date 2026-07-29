@@ -15,6 +15,7 @@ import {
   replaceManagedShippingCharge,
   searchManagedVariants,
   updateManagedOrderContact,
+  updateManagedOrderPreorder,
 } from "../services/shopify-order-manager.server";
 
 function requiredOrderId(request: Request) {
@@ -100,6 +101,14 @@ export async function action({ request }: ActionFunctionArgs) {
         currencyCode: order.total.currencyCode,
       });
       return redirectToOrder(orderId, "Shipping charge updated");
+    }
+
+    if (intent === "update-preorder") {
+      await updateManagedOrderPreorder(admin, orderId, {
+        eta: formText(form, "preorderEta"),
+        pendingPrice: formText(form, "preorderPendingPrice"),
+      });
+      return redirectToOrder(orderId, "Preorder customer message updated");
     }
 
     if (intent === "update-line") {
@@ -257,6 +266,67 @@ export default function ManagedOrderDetail() {
             </div>
           </div>
         </div>
+      </s-section>
+
+      <s-section heading="Preorder customer message">
+        <s-banner tone="info">
+          This saves information against the order only. It does not change the
+          product, variant, image, quantity, or product price.
+        </s-banner>
+        <Form method="post" className="kdc-managed-form">
+          <input type="hidden" name="intent" value="update-preorder" />
+          <div className="kdc-form-grid">
+            <label>
+              Arrival ETA
+              <input
+                className="kdc-text-input"
+                name="preorderEta"
+                defaultValue={order.preorderEta ?? ""}
+                maxLength={120}
+                placeholder="first week of August"
+              />
+              <small>Change only this part of the customer message.</small>
+            </label>
+            <label>
+              Pending price ({currencyCode})
+              <input
+                className="kdc-text-input"
+                type="number"
+                min="0"
+                step="0.01"
+                name="preorderPendingPrice"
+                defaultValue={order.preorderPendingPrice ?? ""}
+                placeholder="2100"
+              />
+              <small>Change only the remaining amount.</small>
+            </label>
+          </div>
+          <div className="kdc-preorder-message-preview">
+            {order.preorderEta && order.preorderPendingPrice ? (
+              <strong>
+                Arriving {order.preorderEta}. Pay the remaining{" "}
+                {money(order.preorderPendingPrice, currencyCode)} before
+                dispatch.
+              </strong>
+            ) : (
+              <span>
+                Enter both fields to show the message. Clear both fields to
+                remove it.
+              </span>
+            )}
+          </div>
+          <div className="kdc-form-actions">
+            <button
+              className="kdc-native-button"
+              type="submit"
+              disabled={Boolean(submitting)}
+            >
+              {submitting === "update-preorder"
+                ? "Saving preorder message…"
+                : "Save preorder message"}
+            </button>
+          </div>
+        </Form>
       </s-section>
 
       <s-section heading="Shipping address and contact">
