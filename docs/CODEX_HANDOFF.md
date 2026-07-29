@@ -177,6 +177,39 @@ that workbook and its generator were not present in this project when the
 handoff was refreshed. Recreate or verify it before promising that sample file
 in a future chat.
 
+## Fulfilled order-line replacement safeguard
+
+The reported issue where replacing a product added the new product while the
+old product remained visible is fixed and deployed:
+
+- Source commit: local `4b24891`; deployment-snapshot commit `af02f2b`
+- Render deploy: `dep-d9l5bhe417fc73d68rhg`
+- Validation: 56 tests, typecheck, lint, production build, Shopify `2026-07`
+  GraphQL code generation, and `git diff --check` passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
+
+Shopify permits an order edit to replace or remove only a fully unfulfilled
+line. A fulfilled or partially fulfilled line remains part of the order and
+fulfillment history. The app now reads `unfulfilledQuantity` and
+`merchantEditable`, disables replacement controls for locked lines, explains
+the limitation in the editor, and performs preflight and calculated-order race
+checks before adding the replacement variant. This prevents another new
+product from being added when Shopify cannot remove the old one.
+
+For an order already affected, such as the reported order `#1002`, do not
+silently mutate the live order. The operator must:
+
+1. Remove the accidentally added, still-unfulfilled replacement line by
+   setting its quantity to zero in the app.
+2. In Shopify Admin, open the old product's fulfilled card, choose `...`, and
+   cancel its fulfillment.
+3. Refresh the Order Import app and replace the now-unfulfilled old line.
+
+Shopify will retain fulfillment/audit history even after correction; the old
+fulfilled product cannot be erased from historical records by a normal order
+edit.
+
 ## Important source locations
 
 - Pending list and confirmation UI: `app/routes/app.preview.tsx`
