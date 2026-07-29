@@ -649,7 +649,6 @@ async function ensurePreorderMetafieldDefinitions(admin: AdminApiContext) {
               type: definition.type,
               pin: true,
               access: {
-                admin: "MERCHANT_READ_WRITE",
                 customerAccount: "READ",
               },
             },

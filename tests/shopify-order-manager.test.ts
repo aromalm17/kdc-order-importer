@@ -218,7 +218,7 @@ describe("Shopify order manager", () => {
     expect(graphql).not.toHaveBeenCalled();
   });
 
-  it("creates merchant-editable preorder definitions on first save", async () => {
+  it("creates merchant-owned preorder definitions without explicit admin access", async () => {
     const graphql = vi
       .fn()
       .mockResolvedValueOnce(response({ eta: null, pendingPrice: null }))
@@ -262,9 +262,9 @@ describe("Shopify order manager", () => {
     expect(graphql).toHaveBeenCalledTimes(4);
     for (const call of [graphql.mock.calls[1], graphql.mock.calls[2]]) {
       expect(call[1].variables.definition.access).toEqual({
-        admin: "MERCHANT_READ_WRITE",
         customerAccount: "READ",
       });
+      expect(call[1].variables.definition.access).not.toHaveProperty("admin");
     }
   });
 
