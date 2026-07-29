@@ -451,13 +451,7 @@ export async function parseWorkbook(
           firstValue(rows, mapping.shippingAddress) ??
           composedAddress(rows, "Shipping"),
         note: firstValue(rows, mapping.notes),
-        tags: [
-          "KDC-Historical-Import",
-          "KDC Order History Import",
-          ...(firstValue(rows, mapping.tags)
-            ?.split(",")
-            .map((tag) => tag.trim()) ?? []),
-        ].filter(Boolean),
+        tags: ["Order Import"],
         lineItems,
         issues,
       };

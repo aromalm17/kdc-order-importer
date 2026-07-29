@@ -66,7 +66,39 @@ describe("workbook parser", () => {
     expect(parsed.orders[0].lineItems).toHaveLength(2);
     expect(parsed.orders[0].customerEmail).toBe("buyer@example.com");
     expect(parsed.orders[0].fulfillmentStatus).toBe("Fulfilled");
+    expect(parsed.orders[0].tags).toEqual(["Order Import"]);
     expect(hasBlockingIssues(parsed.orders[0])).toBe(false);
+  });
+
+  it("uses only the Order Import tag", async () => {
+    const buffer = await workbookBuffer([
+      [
+        "Name",
+        "Customer: Email",
+        "Tags",
+        "Line: Type",
+        "Line: Title",
+        "Line: Image",
+        "Line: Variant ID",
+        "Line: Price",
+        "Line: Quantity",
+      ],
+      [
+        "#1001-TAGS",
+        "buyer@example.com",
+        "Old Tag, Another Tag",
+        "Line Item",
+        "Car",
+        "https://cdn.shopify.com/s/files/1/a.jpg",
+        "10001",
+        949,
+        1,
+      ],
+    ]);
+
+    const parsed = await parseWorkbook(buffer);
+
+    expect(parsed.orders[0].tags).toEqual(["Order Import"]);
   });
 
   it.each(["", "  FULFILLED  ", "Fulfiled"])(
