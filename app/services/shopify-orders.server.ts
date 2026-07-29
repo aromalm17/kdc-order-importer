@@ -15,6 +15,7 @@ const ORDER_CREATE = `#graphql
 
 export type ImportableOrder = {
   customerEmail?: string | null;
+  shippingAddress?: ShopifyMailingAddressInput | null;
   currency: string;
   financialStatus?: string | null;
   fulfillmentStatus?: string | null;
@@ -24,26 +25,44 @@ export type ImportableOrder = {
   lineItems: { variantId: string | null; quantity: number }[];
 };
 
+export type ShopifyMailingAddressInput = {
+  firstName?: string;
+  lastName?: string;
+  company?: string;
+  address1?: string;
+  address2?: string;
+  city?: string;
+  provinceCode?: string;
+  zip?: string;
+  countryCode?: string;
+  phone?: string;
+};
+
 export type CustomerVerificationProfile = {
   displayName?: string;
   email?: string;
   phone?: string;
   defaultAddress?: string;
+  defaultShippingAddress?: ShopifyMailingAddressInput;
 };
 
-function formatMailingAddress(
-  address?: {
-    name?: string | null;
-    company?: string | null;
-    address1?: string | null;
-    address2?: string | null;
-    city?: string | null;
-    province?: string | null;
-    zip?: string | null;
-    country?: string | null;
-    phone?: string | null;
-  } | null,
-) {
+type CustomerDefaultAddress = {
+  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  company?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  province?: string | null;
+  provinceCode?: string | null;
+  zip?: string | null;
+  country?: string | null;
+  countryCodeV2?: string | null;
+  phone?: string | null;
+};
+
+function formatMailingAddress(address?: CustomerDefaultAddress | null) {
   if (!address) return undefined;
   const values = [
     address.name,
@@ -57,6 +76,25 @@ function formatMailingAddress(
     address.phone,
   ].filter((value): value is string => Boolean(value));
   return values.length ? values.join(", ") : undefined;
+}
+
+function structuredMailingAddress(
+  address?: CustomerDefaultAddress | null,
+): ShopifyMailingAddressInput | undefined {
+  if (!address) return undefined;
+  const input = {
+    firstName: address.firstName?.trim() || undefined,
+    lastName: address.lastName?.trim() || undefined,
+    company: address.company?.trim() || undefined,
+    address1: address.address1?.trim() || undefined,
+    address2: address.address2?.trim() || undefined,
+    city: address.city?.trim() || undefined,
+    provinceCode: address.provinceCode?.trim() || undefined,
+    zip: address.zip?.trim() || undefined,
+    countryCode: address.countryCodeV2?.trim() || undefined,
+    phone: address.phone?.trim() || undefined,
+  };
+  return Object.values(input).some(Boolean) ? input : undefined;
 }
 
 export async function findCustomerByEmail(
@@ -76,13 +114,17 @@ export async function findCustomerByEmail(
               defaultPhoneNumber { phoneNumber }
               defaultAddress {
                 name
+                firstName
+                lastName
                 company
                 address1
                 address2
                 city
                 province
+                provinceCode
                 zip
                 country
+                countryCodeV2
                 phone
               }
             }
@@ -98,17 +140,7 @@ export async function findCustomerByEmail(
             displayName?: string;
             defaultEmailAddress?: { emailAddress?: string } | null;
             defaultPhoneNumber?: { phoneNumber?: string } | null;
-            defaultAddress?: {
-              name?: string | null;
-              company?: string | null;
-              address1?: string | null;
-              address2?: string | null;
-              city?: string | null;
-              province?: string | null;
-              zip?: string | null;
-              country?: string | null;
-              phone?: string | null;
-            } | null;
+            defaultAddress?: CustomerDefaultAddress | null;
           }>;
         };
       };
@@ -120,6 +152,7 @@ export async function findCustomerByEmail(
       email: customer.defaultEmailAddress?.emailAddress,
       phone: customer.defaultPhoneNumber?.phoneNumber,
       defaultAddress: formatMailingAddress(customer.defaultAddress),
+      defaultShippingAddress: structuredMailingAddress(customer.defaultAddress),
     };
   } catch {
     return null;
@@ -177,13 +210,17 @@ export async function findCustomerProfilesByEmail(
             defaultPhoneNumber { phoneNumber }
             defaultAddress {
               name
+              firstName
+              lastName
               company
               address1
               address2
               city
               province
+              provinceCode
               zip
               country
+              countryCodeV2
               phone
             }
           }
@@ -201,23 +238,12 @@ export async function findCustomerProfilesByEmail(
       const json = (await response.json()) as {
         data?: Record<
           string,
-          | {
-              displayName?: string;
-              defaultEmailAddress?: { emailAddress?: string } | null;
-              defaultPhoneNumber?: { phoneNumber?: string } | null;
-              defaultAddress?: {
-                name?: string | null;
-                company?: string | null;
-                address1?: string | null;
-                address2?: string | null;
-                city?: string | null;
-                province?: string | null;
-                zip?: string | null;
-                country?: string | null;
-                phone?: string | null;
-              } | null;
-            }
-          | null
+          {
+            displayName?: string;
+            defaultEmailAddress?: { emailAddress?: string } | null;
+            defaultPhoneNumber?: { phoneNumber?: string } | null;
+            defaultAddress?: CustomerDefaultAddress | null;
+          } | null
         >;
       };
 
@@ -231,6 +257,9 @@ export async function findCustomerProfilesByEmail(
                 email: customer.defaultEmailAddress?.emailAddress,
                 phone: customer.defaultPhoneNumber?.phoneNumber,
                 defaultAddress: formatMailingAddress(customer.defaultAddress),
+                defaultShippingAddress: structuredMailingAddress(
+                  customer.defaultAddress,
+                ),
               }
             : null,
         );
@@ -262,9 +291,7 @@ export async function createHistoricalOrder(
   if (order.lineItems.some((line) => !line.variantId)) {
     throw new Error("Every line item must have a verified Shopify variant ID.");
   }
-  const fulfillmentStatus = normalizeFulfillmentStatus(
-    order.fulfillmentStatus,
-  );
+  const fulfillmentStatus = normalizeFulfillmentStatus(order.fulfillmentStatus);
   if (!isCompletedFulfillmentStatus(fulfillmentStatus)) {
     throw new Error(
       `Fulfillment Status is "${fulfillmentStatus}". Only completed (Fulfilled) orders can be imported.`,
@@ -276,6 +303,7 @@ export async function createHistoricalOrder(
         customer: order.customerEmail
           ? { toUpsert: { email: order.customerEmail } }
           : undefined,
+        shippingAddress: order.shippingAddress ?? undefined,
         currency: order.currency,
         financialStatus: financialStatus(order.financialStatus),
         fulfillmentStatus: "FULFILLED",

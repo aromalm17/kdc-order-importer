@@ -20,6 +20,17 @@ describe("Shopify order creation", () => {
     });
     const result = await createHistoricalOrder({ graphql } as never, {
       customerEmail: "buyer@example.com",
+      shippingAddress: {
+        firstName: "Aromal",
+        lastName: "M",
+        address1: "Pavithram",
+        address2: "Kaloliparamba",
+        city: "Kozhikode",
+        provinceCode: "KL",
+        zip: "673016",
+        countryCode: "IN",
+        phone: "+919645260931",
+      },
       currency: "INR",
       financialStatus: "Paid",
       tags: ["KDC-Historical-Import"],
@@ -35,6 +46,17 @@ describe("Shopify order creation", () => {
           options: { sendReceipt: false, sendFulfillmentReceipt: false },
           order: expect.objectContaining({
             fulfillmentStatus: "FULFILLED",
+            shippingAddress: {
+              firstName: "Aromal",
+              lastName: "M",
+              address1: "Pavithram",
+              address2: "Kaloliparamba",
+              city: "Kozhikode",
+              provinceCode: "KL",
+              zip: "673016",
+              countryCode: "IN",
+              phone: "+919645260931",
+            },
           }),
         }),
       }),
@@ -114,13 +136,17 @@ describe("Shopify order creation", () => {
             defaultPhoneNumber: { phoneNumber: "+919645260931" },
             defaultAddress: {
               name: "Aromal M",
+              firstName: "Aromal",
+              lastName: "M",
               company: null,
               address1: "Pavithram",
               address2: "Kaloliparamba",
               city: "Kozhikode",
               province: "Kerala",
+              provinceCode: "KL",
               zip: "673016",
               country: "India",
+              countryCodeV2: "IN",
               phone: "+919645260931",
             },
           },
@@ -128,10 +154,10 @@ describe("Shopify order creation", () => {
       }),
     });
 
-    const profiles = await findCustomerProfilesByEmail(
-      { graphql } as never,
-      [" Buyer@Example.com ", "buyer@example.com"],
-    );
+    const profiles = await findCustomerProfilesByEmail({ graphql } as never, [
+      " Buyer@Example.com ",
+      "buyer@example.com",
+    ]);
 
     expect(profiles.get("buyer@example.com")).toEqual({
       displayName: "Aromal M",
@@ -139,6 +165,18 @@ describe("Shopify order creation", () => {
       phone: "+919645260931",
       defaultAddress:
         "Aromal M, Pavithram, Kaloliparamba, Kozhikode, Kerala, 673016, India, +919645260931",
+      defaultShippingAddress: {
+        firstName: "Aromal",
+        lastName: "M",
+        company: undefined,
+        address1: "Pavithram",
+        address2: "Kaloliparamba",
+        city: "Kozhikode",
+        provinceCode: "KL",
+        zip: "673016",
+        countryCode: "IN",
+        phone: "+919645260931",
+      },
     });
     expect(graphql).toHaveBeenCalledTimes(1);
     expect(graphql.mock.calls[0][1]).toEqual({
@@ -149,26 +187,28 @@ describe("Shopify order creation", () => {
   });
 
   it("batches complete customer profile lookups in groups of 50", async () => {
-    const graphql = vi.fn().mockImplementation(
-      async (
-        _query: string,
-        options: { variables: Record<string, { emailAddress: string }> },
-      ) => ({
-        json: async () => ({
-          data: Object.fromEntries(
-            Object.entries(options.variables).map(
-              ([identifier, { emailAddress }]) => [
-                identifier.replace("identifier", "customer"),
-                {
-                  displayName: `Customer ${emailAddress}`,
-                  defaultEmailAddress: { emailAddress },
-                },
-              ],
+    const graphql = vi
+      .fn()
+      .mockImplementation(
+        async (
+          _query: string,
+          options: { variables: Record<string, { emailAddress: string }> },
+        ) => ({
+          json: async () => ({
+            data: Object.fromEntries(
+              Object.entries(options.variables).map(
+                ([identifier, { emailAddress }]) => [
+                  identifier.replace("identifier", "customer"),
+                  {
+                    displayName: `Customer ${emailAddress}`,
+                    defaultEmailAddress: { emailAddress },
+                  },
+                ],
+              ),
             ),
-          ),
+          }),
         }),
-      }),
-    );
+      );
     const emails = Array.from(
       { length: 51 },
       (_, index) => `customer-${index}@example.com`,
@@ -180,9 +220,7 @@ describe("Shopify order creation", () => {
     );
 
     expect(graphql).toHaveBeenCalledTimes(2);
-    expect(
-      Object.keys(graphql.mock.calls[0][1].variables),
-    ).toHaveLength(50);
+    expect(Object.keys(graphql.mock.calls[0][1].variables)).toHaveLength(50);
     expect(Object.keys(graphql.mock.calls[1][1].variables)).toHaveLength(1);
     expect(profiles).toHaveLength(51);
     expect(profiles.get("customer-50@example.com")?.email).toBe(

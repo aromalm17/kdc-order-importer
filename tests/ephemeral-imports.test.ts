@@ -44,6 +44,7 @@ describe("Selective pending-order import", () => {
   beforeEach(() => {
     vi.mocked(createHistoricalOrder).mockReset();
     vi.mocked(findCustomerProfilesByEmail).mockReset();
+    vi.mocked(findCustomerProfilesByEmail).mockResolvedValue(new Map());
     vi.mocked(verifyOrderVariantImages).mockReset();
     vi.mocked(verifyOrderVariantImages).mockImplementation(
       async (_admin, orders) => orders,
@@ -102,9 +103,7 @@ describe("Selective pending-order import", () => {
     );
     const job = {
       updatedAt: new Date(),
-      customerProfiles: new Map([
-        ["existing@example.com", existingProfile],
-      ]),
+      customerProfiles: new Map([["existing@example.com", existingProfile]]),
     } as EphemeralJob;
 
     const profiles = await getCachedCustomerProfiles(job, {} as never, [
@@ -207,6 +206,67 @@ describe("Selective pending-order import", () => {
     ]);
     expect(job.importedOrders).toBe(1);
     expect(job.status).toBe("PENDING");
+  });
+
+  it("uses the matched customer's default address as imported shipping address", async () => {
+    vi.mocked(createHistoricalOrder).mockResolvedValue({
+      id: "gid://shopify/Order/1",
+      name: "#1001",
+    });
+    const order = parsedOrder("ready-with-address");
+    order.customerEmail = " Buyer@Example.com ";
+    const defaultShippingAddress = {
+      firstName: "Aromal",
+      lastName: "M",
+      address1: "Pavithram",
+      city: "Kozhikode",
+      provinceCode: "KL",
+      zip: "673016",
+      countryCode: "IN",
+      phone: "+919645260931",
+    };
+    vi.mocked(findCustomerProfilesByEmail).mockResolvedValue(
+      new Map([
+        [
+          "buyer@example.com",
+          {
+            displayName: "Aromal M",
+            email: "buyer@example.com",
+            defaultAddress: "Pavithram, Kozhikode, Kerala, 673016, India",
+            defaultShippingAddress,
+          },
+        ],
+      ]),
+    );
+    const job = {
+      id: "job-address",
+      shop: "example.myshopify.com",
+      fileName: "orders.xlsx",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      totalOrders: 1,
+      importedOrders: 0,
+      status: "PREVIEW",
+      currentMessage: "Ready for review",
+      pending: [order],
+      customerProfiles: new Map(),
+    } satisfies EphemeralJob;
+
+    await importReadyOrders(job, {} as never, ["ready-with-address"]);
+
+    expect(findCustomerProfilesByEmail).toHaveBeenCalledWith(
+      expect.anything(),
+      ["buyer@example.com"],
+    );
+    expect(createHistoricalOrder).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        customerEmail: " Buyer@Example.com ",
+        shippingAddress: defaultShippingAddress,
+      }),
+    );
+    expect(job.pending).toEqual([]);
+    expect(job.status).toBe("COMPLETED");
   });
 
   it("never imports a selected blocked order", async () => {

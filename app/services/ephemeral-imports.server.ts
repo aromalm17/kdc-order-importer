@@ -179,11 +179,20 @@ export async function importReadyOrders(
     return 0;
   }
 
+  const customerProfiles = await getCachedCustomerProfiles(
+    job,
+    admin,
+    verifiedCandidates.map((order) => order.customerEmail),
+  );
   let importedThisRun = 0;
   for (const order of verifiedCandidates) {
     try {
+      const customerProfile = order.customerEmail
+        ? customerProfiles.get(order.customerEmail.trim().toLowerCase())
+        : null;
       await createHistoricalOrder(admin, {
         ...order,
+        shippingAddress: customerProfile?.defaultShippingAddress,
         lineItems: order.lineItems.map((line) => ({
           variantId: line.variantId ?? null,
           quantity: line.quantity,
