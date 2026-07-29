@@ -9,6 +9,11 @@ import {
 } from "../services/ephemeral-imports.server";
 import { findCustomerNamesByEmail } from "../services/shopify-orders.server";
 import { hasBlockingIssues } from "../services/workbook.server";
+import {
+  getAttachmentFilename,
+  isExcelResponse,
+  XLSX_CONTENT_TYPE,
+} from "../utils/download";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { session, admin } = await authenticate.admin(request);
@@ -110,6 +115,8 @@ export default function PreviewOrders() {
   const selectAllRef = useRef<HTMLInputElement>(null);
   const [confirmation, setConfirmation] = useState("");
   const [selectedOrderKeys, setSelectedOrderKeys] = useState<string[]>([]);
+  const [downloadingPendingExcel, setDownloadingPendingExcel] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const importing = importer.state !== "idle" || data.job?.status === "RUNNING";
   const readyOrderKeys = data.orders
     .filter((order) => !order.blocked)
@@ -148,6 +155,7 @@ export default function PreviewOrders() {
   }
   const confirmationMatches = confirmation.trim().toUpperCase() === "YES";
   const pendingExcelHref = `/app/api/export-pending-xlsx?job=${encodeURIComponent(data.job.id)}`;
+  const pendingExcelFilename = `pending-orders-${data.job.id}.xlsx`;
 
   function toggleOrder(key: string, checked: boolean) {
     setSelectedOrderKeys((current) => {
@@ -160,6 +168,61 @@ export default function PreviewOrders() {
 
   function toggleAllReadyOrders(checked: boolean) {
     setSelectedOrderKeys(checked ? readyOrderKeys : []);
+  }
+
+  async function downloadPendingExcel() {
+    if (downloadingPendingExcel) return;
+    setDownloadingPendingExcel(true);
+    setDownloadError(null);
+
+    try {
+      const response = await fetch(pendingExcelHref, {
+        credentials: "same-origin",
+        headers: { Accept: XLSX_CONTENT_TYPE },
+      });
+      if (!response.ok) {
+        throw new Error(
+          response.status === 404
+            ? "This pending import has expired. Upload the workbook again."
+            : "The pending Excel file could not be generated. Please try again.",
+        );
+      }
+      if (
+        response.redirected ||
+        !isExcelResponse(response.headers.get("Content-Type"))
+      ) {
+        throw new Error(
+          "Your Shopify session may have expired. Refresh the app and try again.",
+        );
+      }
+
+      const workbook = await response.blob();
+      if (!workbook.size) {
+        throw new Error("The generated Excel file was empty. Please try again.");
+      }
+
+      const filename = getAttachmentFilename(
+        response.headers.get("Content-Disposition"),
+        pendingExcelFilename,
+      );
+      const objectUrl = URL.createObjectURL(workbook);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = filename;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (error) {
+      setDownloadError(
+        error instanceof Error
+          ? error.message
+          : "The pending Excel file could not be downloaded.",
+      );
+    } finally {
+      setDownloadingPendingExcel(false);
+    }
   }
 
   function startImport() {
@@ -183,7 +246,14 @@ export default function PreviewOrders() {
             <span className="kdc-selected-count" aria-live="polite">
               {selectedCount} of {data.job.readyOrders} selected
             </span>
-            <s-button href={pendingExcelHref}>Download pending Excel</s-button>
+            <s-button
+              disabled={downloadingPendingExcel}
+              onClick={() => void downloadPendingExcel()}
+            >
+              {downloadingPendingExcel
+                ? "Preparing Excel…"
+                : "Download pending Excel"}
+            </s-button>
             <s-button
               variant="primary"
               disabled={importing || selectedCount === 0}
@@ -199,6 +269,9 @@ export default function PreviewOrders() {
         </s-banner>
         {importerError ? (
           <s-banner tone="critical">{importerError}</s-banner>
+        ) : null}
+        {downloadError ? (
+          <s-banner tone="critical">{downloadError}</s-banner>
         ) : null}
         <s-grid
           gridTemplateColumns="repeat(auto-fit, minmax(160px, 1fr))"
@@ -267,7 +340,14 @@ export default function PreviewOrders() {
           placeholder="Type YES"
         />
         <div className="kdc-confirm-dialog__actions">
-          <s-button href={pendingExcelHref}>Download pending Excel</s-button>
+          <s-button
+            disabled={downloadingPendingExcel}
+            onClick={() => void downloadPendingExcel()}
+          >
+            {downloadingPendingExcel
+              ? "Preparing Excel…"
+              : "Download pending Excel"}
+          </s-button>
           <s-button
             variant="primary"
             disabled={!confirmationMatches || selectedCount === 0}
