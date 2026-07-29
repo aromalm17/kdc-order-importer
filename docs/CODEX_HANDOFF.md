@@ -311,6 +311,28 @@ This feature was deployed on 2026-07-30:
 - No live order values were changed during deployment. An administrator must
   open a specific order in Order Import and save the ETA and pending amount.
 
+The native Shopify customer-account order-detail page now has a separate
+static extension that renders once after the Items list:
+
+- Source:
+  `../kdc-single-store-final/kdc-account-single-store/extensions/preorder-order-message/`
+- Target:
+  `customer-account.order-status.cart-line-list.render-after`
+- It declares and reads the order metafields `custom.preorder_eta` and
+  `custom.preorder_pending_price` through `shopify.appMetafields`.
+- It renders nothing unless both fields have values. When both exist it shows
+  the fixed sentence `Arriving {ETA}. Pay the remaining {amount} before
+  dispatch.`
+- This must remain a separate UI extension from `kdc-account`, because Shopify
+  does not permit `customer-account.page.render` to be combined with any other
+  target in one extension package.
+- Customer Profile app version: `native-preorder-order-message-1`
+- Shopify version:
+  `https://dev.shopify.com/dashboard/227614855/apps/402981945345/versions/1069531004929`
+- `shopify app build` passed, the app version was released to users, and
+  `shopify app info --json` reports both the original full-page extension and
+  the new native order-detail extension with both declared metafields.
+
 The customer account Shopify app was renamed from
 `KDC Account Single Store` to `Customer Profile` on 2026-07-30:
 
