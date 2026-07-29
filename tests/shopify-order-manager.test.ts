@@ -218,6 +218,56 @@ describe("Shopify order manager", () => {
     expect(graphql).not.toHaveBeenCalled();
   });
 
+  it("creates merchant-editable preorder definitions on first save", async () => {
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(response({ eta: null, pendingPrice: null }))
+      .mockResolvedValueOnce(
+        response({
+          metafieldDefinitionCreate: {
+            createdDefinition: {
+              id: "gid://shopify/MetafieldDefinition/1",
+              key: "preorder_eta",
+            },
+            userErrors: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          metafieldDefinitionCreate: {
+            createdDefinition: {
+              id: "gid://shopify/MetafieldDefinition/2",
+              key: "preorder_pending_price",
+            },
+            userErrors: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          metafieldsSet: { metafields: [], userErrors: [] },
+        }),
+      );
+
+    await updateManagedOrderPreorder(
+      { graphql } as never,
+      "gid://shopify/Order/1",
+      {
+        eta: "first week of August",
+        pendingPrice: "2100",
+      },
+    );
+
+    expect(graphql).toHaveBeenCalledTimes(4);
+    for (const call of [graphql.mock.calls[1], graphql.mock.calls[2]]) {
+      expect(call[1].variables.definition.access).toEqual({
+        admin: "MERCHANT_READ_WRITE",
+        customerAccount: "READ",
+      });
+    }
+  });
+
   it("replaces a line item with a verified variant and suppresses notification", async () => {
     const originalLine = {
       id: "gid://shopify/LineItem/10",
