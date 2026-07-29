@@ -140,29 +140,37 @@ This feature was deployed successfully on 2026-07-30:
 - The pending Excel export includes the `Fulfillment Status` column.
 - Imports use verified Shopify variant IDs; do not create custom/free-text
   items.
+- Before import, the app matches the workbook customer email to the Shopify
+  customer profile, loads the customer's structured default address, and sends
+  it explicitly as the created order's `shippingAddress`. This lookup uses the
+  job-scoped profile cache and also runs from the import path if the preview
+  loader did not populate the cache first.
+- The structured address includes first name, last name, company, address
+  lines, city, province code, postal code, country code, and phone when those
+  values exist on the Shopify customer. If no matching customer or default
+  address is available, the import proceeds without an explicit shipping
+  address rather than inventing address data.
 - Historical customer and fulfillment email notifications remain disabled.
 - Before importing, variants and their images are verified again against
   Shopify to prevent stale preview data from bypassing validation.
 
-## Outstanding request: use the customer address as shipping address
+## Imported order shipping address
 
-The latest unfinished user request is:
+The request to use the Shopify customer's default address as the imported
+order's shipping address is completed and deployed:
 
-> Take the customer address as the shipping address, and set that address.
+- Source commit: local `19b676a`; deployment-snapshot commit `f833d74`
+- Render deploy: `dep-d9l56f5aeets73agudu0`
+- Validation: 55 tests, typecheck, lint, production build, and Shopify
+  `2026-07` GraphQL code generation passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
 
-The prior chat stopped while auditing this change. As of this refresh,
-`findCustomerProfilesByEmail` fetches and formats the Shopify customer's
-`defaultAddress`, and the detail page can display that address as a fallback,
-but `createHistoricalOrder` does **not** pass a `shippingAddress` to Shopify's
-`orderCreate` mutation. This requirement is therefore not finished and must
-not be reported as deployed.
-
-When implementing it, preserve the structured Shopify mailing-address fields
-needed by `OrderCreateOrderInput`, use the matched customer's default address
-as the created order's shipping address, add regression tests for the mutation
-input, then run the normal verification and deployment workflow. Inspect
-`git status` first and preserve any worktree changes that may have appeared
-after this handoff.
+`findCustomerProfilesByEmail` now retains both the formatted address used by
+the preview UI and a structured `defaultShippingAddress`.
+`importReadyOrders` resolves the normalized customer email from the job cache
+and passes that structured address to `createHistoricalOrder`, which sends it
+as `shippingAddress` in `orderCreate`.
 
 The previous chat also reported creating `KDC-Order-Import-Sample.xlsx`, but
 that workbook and its generator were not present in this project when the
@@ -236,7 +244,7 @@ changes.
    blocked-unfulfilled examples (the previously reported generated file is not
    currently present and needs to be recreated or verified).
 10. Use the matched customer's default Shopify address as the shipping address
-    on the imported order. This remains outstanding.
+    on the imported order. Completed and deployed on 2026-07-30.
 11. Add a Shopify Orders menu that lists store orders and supports editing the
     shipping address/contact, shipping charge, quantities, product/variant
     assignment with image verification, and irreversible eligible-order
