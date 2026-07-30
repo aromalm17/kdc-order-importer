@@ -333,6 +333,16 @@ static extension that renders once after the Items list:
   `shopify app info --json` reports both the original full-page extension and
   the new native order-detail extension with both declared metafields.
 
+The live storefront's visible **My Account** order detail is not Shopify's
+Customer Account extension surface. It is rendered by the theme snippet
+`../snippets/customer-account-dashboard.liquid`. Therefore the released static
+extension above does not control the page shown in the user's screenshots.
+Theme release `Kerala Diecast Cars Version 1.0.0` added the same fixed sentence
+directly to that snippet using the two order metafields and was published live
+on 2026-07-30. The prior `KDC Pre-Chat Restore` theme remains intact for
+rollback. See `../THEME_RELEASE_HANDOFF.md`; the next theme name is
+`Kerala Diecast Cars Version 1.0.1`.
+
 The customer account Shopify app was renamed from
 `KDC Account Single Store` to `Customer Profile` on 2026-07-30:
 
