@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import ExcelJS from "exceljs";
 import type { ParsedOrder } from "../app/lib/import-types";
 import {
   createHistoricalOrder,
@@ -13,6 +14,7 @@ import {
   getSelectedReadyOrders,
   importReadyOrders,
   pendingCsv,
+  pendingWorkbook,
   type EphemeralJob,
 } from "../app/services/ephemeral-imports.server";
 
@@ -181,7 +183,7 @@ describe("Selective pending-order import", () => {
   });
 
   it("retains fulfillment status in the pending export", () => {
-    const order = parsedOrder("incomplete");
+    const order = parsedOrder("incomplete", true);
     order.fulfillmentStatus = "Unfulfilled";
     order.lineItems = [
       {
@@ -197,6 +199,44 @@ describe("Selective pending-order import", () => {
 
     expect(csv).toContain('"Fulfillment Status"');
     expect(csv).toContain('"Unfulfilled"');
+  });
+
+  it("exports only not-ready orders to the pending workbook", async () => {
+    const ready = parsedOrder("ready");
+    ready.sourceOrderName = "#1001";
+    ready.lineItems = [
+      {
+        sourceRowNumber: 2,
+        productTitle: "Ready car",
+        quantity: 1,
+        unitPrice: 649,
+        rawRow: {},
+        issues: [],
+      },
+    ];
+    const blocked = parsedOrder("blocked", true);
+    blocked.sourceOrderName = "#1002";
+    blocked.lineItems = [
+      {
+        sourceRowNumber: 3,
+        productTitle: "Blocked car",
+        quantity: 1,
+        unitPrice: 949,
+        rawRow: {},
+        issues: [],
+      },
+    ];
+
+    const buffer = await pendingWorkbook({
+      pending: [ready, blocked],
+    } as EphemeralJob);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Uint8Array.from(buffer).buffer);
+    const sheet = workbook.getWorksheet("Pending orders");
+
+    expect(sheet?.rowCount).toBe(2);
+    expect(sheet?.getCell("A2").value).toBe("#1002");
+    expect(sheet?.getCell("F2").value).toBe("Blocked car");
   });
 
   it("imports and removes only the selected ready order", async () => {

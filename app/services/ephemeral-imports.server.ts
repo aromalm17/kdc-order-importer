@@ -250,7 +250,7 @@ export function pendingCsv(job: EphemeralJob) {
     "Price",
     "Reason",
   ];
-  const rows = job.pending.flatMap((order) =>
+  const rows = job.pending.filter(hasBlockingIssues).flatMap((order) =>
     order.lineItems.map((line) => [
       order.sourceOrderName ?? order.sourceOrderId,
       order.customerEmail ?? "",
@@ -303,7 +303,7 @@ export async function pendingWorkbook(job: EphemeralJob) {
     fgColor: { argb: "FFECECEC" },
   };
 
-  for (const order of job.pending) {
+  for (const order of job.pending.filter(hasBlockingIssues)) {
     for (const line of order.lineItems) {
       sheet.addRow({
         source: order.sourceOrderName ?? order.sourceOrderId,
