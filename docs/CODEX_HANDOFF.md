@@ -339,9 +339,11 @@ Customer Account extension surface. It is rendered by the theme snippet
 extension above does not control the page shown in the user's screenshots.
 Theme release `Kerala Diecast Cars Version 1.0.0` added the same fixed sentence
 directly to that snippet using the two order metafields and was published live
-on 2026-07-30. The prior `KDC Pre-Chat Restore` theme remains intact for
-rollback. See `../THEME_RELEASE_HANDOFF.md`; the next theme name is
-`Kerala Diecast Cars Version 1.0.1`.
+on 2026-07-30. Theme release `Kerala Diecast Cars Version 1.0.1` subsequently
+added the homepage RC Cars section and is now live. Versions `1.0.0` and
+`KDC Pre-Chat Restore` remain intact for rollback. See
+`../THEME_RELEASE_HANDOFF.md`; the next theme name is
+`Kerala Diecast Cars Version 1.0.2`.
 
 The customer account Shopify app was renamed from
 `KDC Account Single Store` to `Customer Profile` on 2026-07-30:
