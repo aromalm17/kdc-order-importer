@@ -369,6 +369,21 @@ merchant-owned Admin default, and set only `customerAccount: READ`:
 - Production verification: normal `GET /auth/login` and `GET /` returned HTTP
   200.
 
+The Pending Orders status card now has a **Clear current import** action:
+
+- It asks for confirmation, removes the entire current ephemeral workbook/job,
+  and redirects to **New Import**.
+- It clears only temporary in-memory import data. It does not delete any order
+  already imported into Shopify.
+- The action is disabled while an import is running and reports server errors
+  in the existing critical banner.
+- Source commit: local `262bddd`; deployment-snapshot commit `50d3cd6`
+- Render deploy: `dep-d9lbfju7bikc738ocqhg`
+- Validation: 63 tests, typecheck, lint, production build, formatting, and
+  `git diff --check` passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
+
 ## Important source locations
 
 - Pending list and confirmation UI: `app/routes/app.preview.tsx`
