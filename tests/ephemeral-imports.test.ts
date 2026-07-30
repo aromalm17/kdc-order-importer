@@ -6,7 +6,10 @@ import {
 } from "../app/services/shopify-orders.server";
 import { verifyOrderVariantImages } from "../app/services/variant-verification.server";
 import {
+  clearEphemeralJob,
+  createEphemeralJob,
   getCachedCustomerProfiles,
+  getEphemeralJob,
   getSelectedReadyOrders,
   importReadyOrders,
   pendingCsv,
@@ -156,6 +159,25 @@ describe("Selective pending-order import", () => {
     } as EphemeralJob;
 
     expect(getSelectedReadyOrders(job, [])).toEqual([]);
+  });
+
+  it("clears the current temporary import and latest-shop reference", () => {
+    const shop = "clear-import.example.myshopify.com";
+    const job = createEphemeralJob(shop, "orders.xlsx", {
+      sheetNames: ["Orders"],
+      selectedSheet: "Orders",
+      headers: [],
+      totalRows: 1,
+      mapping: {},
+      orders: [parsedOrder("ready-1")],
+    });
+
+    expect(getEphemeralJob(shop, job.id)).toBe(job);
+    expect(getEphemeralJob(shop)).toBe(job);
+    expect(clearEphemeralJob(shop, job.id)).toBe(true);
+    expect(getEphemeralJob(shop, job.id)).toBeUndefined();
+    expect(getEphemeralJob(shop)).toBeUndefined();
+    expect(clearEphemeralJob(shop, job.id)).toBe(false);
   });
 
   it("retains fulfillment status in the pending export", () => {

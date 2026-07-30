@@ -1,8 +1,15 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useEffect, useRef, useState } from "react";
-import { Link, useFetcher, useLoaderData, useRevalidator } from "react-router";
+import {
+  Link,
+  useFetcher,
+  useLoaderData,
+  useNavigate,
+  useRevalidator,
+} from "react-router";
 import { authenticate } from "../shopify.server";
 import {
+  clearEphemeralJob,
   getSelectedReadyOrders,
   getCachedCustomerProfiles,
   getEphemeralJob,
@@ -77,6 +84,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export async function action({ request }: ActionFunctionArgs) {
   const { session, admin } = await authenticate.admin(request);
   const form = await request.formData();
+  const intent = String(form.get("intent") || "");
   const job = getEphemeralJob(session.shop, String(form.get("jobId") || ""));
   if (!job)
     return Response.json({ error: "Import not found." }, { status: 404 });
@@ -85,6 +93,10 @@ export async function action({ request }: ActionFunctionArgs) {
       { error: "An import is already running." },
       { status: 409 },
     );
+  }
+  if (intent === "clear-import") {
+    clearEphemeralJob(session.shop, job.id);
+    return Response.json({ cleared: true });
   }
   const selectedOrderKeys = [
     ...new Set(
@@ -112,6 +124,8 @@ export async function action({ request }: ActionFunctionArgs) {
 export default function PreviewOrders() {
   const data = useLoaderData<typeof loader>();
   const importer = useFetcher();
+  const clearer = useFetcher();
+  const navigate = useNavigate();
   const revalidator = useRevalidator();
   const confirmationDialog = useRef<HTMLDialogElement>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
@@ -120,6 +134,7 @@ export default function PreviewOrders() {
   const [downloadingPendingExcel, setDownloadingPendingExcel] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const importing = importer.state !== "idle" || data.job?.status === "RUNNING";
+  const clearing = clearer.state !== "idle";
   const readyOrderKeys = data.orders
     .filter((order) => !order.blocked)
     .map((order) => order.key);
@@ -133,6 +148,8 @@ export default function PreviewOrders() {
     readyOrderKeys.length > 0 && selectedCount === readyOrderKeys.length;
   const importerError = (importer.data as { error?: string } | undefined)
     ?.error;
+  const clearerData = clearer.data as
+    { cleared?: boolean; error?: string } | undefined;
 
   useEffect(() => {
     if (!importing) return;
@@ -145,6 +162,12 @@ export default function PreviewOrders() {
     selectAllRef.current.indeterminate =
       selectedCount > 0 && selectedCount < readyOrderKeys.length;
   }, [readyOrderKeys.length, selectedCount]);
+
+  useEffect(() => {
+    if (clearerData?.cleared) {
+      navigate("/app/import/new", { replace: true });
+    }
+  }, [clearerData?.cleared, navigate]);
 
   if (!data.job) {
     return (
@@ -200,7 +223,9 @@ export default function PreviewOrders() {
 
       const workbook = await response.blob();
       if (!workbook.size) {
-        throw new Error("The generated Excel file was empty. Please try again.");
+        throw new Error(
+          "The generated Excel file was empty. Please try again.",
+        );
       }
 
       const filename = getAttachmentFilename(
@@ -239,12 +264,31 @@ export default function PreviewOrders() {
     importer.submit(form, { method: "post" });
   }
 
+  function clearCurrentImport() {
+    if (!data.job || importing || clearing) return;
+    const confirmed = window.confirm(
+      `Clear "${data.job.fileName}" and remove all ${data.orders.length} pending orders from this temporary import? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    const form = new FormData();
+    form.append("intent", "clear-import");
+    form.append("jobId", data.job.id);
+    clearer.submit(form, { method: "post" });
+  }
+
   return (
     <s-page heading={`Pending — ${data.job.fileName}`}>
       <s-section>
         <div className="kdc-import-header">
           <h2>Ephemeral import status</h2>
           <div className="kdc-import-actions">
+            <s-button
+              disabled={importing || clearing}
+              onClick={clearCurrentImport}
+            >
+              {clearing ? "Clearing…" : "Clear current import"}
+            </s-button>
             <span className="kdc-selected-count" aria-live="polite">
               {selectedCount} of {data.job.readyOrders} selected
             </span>
@@ -271,6 +315,9 @@ export default function PreviewOrders() {
         </s-banner>
         {importerError ? (
           <s-banner tone="critical">{importerError}</s-banner>
+        ) : null}
+        {clearerData?.error ? (
+          <s-banner tone="critical">{clearerData.error}</s-banner>
         ) : null}
         {downloadError ? (
           <s-banner tone="critical">{downloadError}</s-banner>
