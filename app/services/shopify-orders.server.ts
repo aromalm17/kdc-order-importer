@@ -305,9 +305,16 @@ export async function createHistoricalOrder(
     );
   }
   const fulfillmentStatus = normalizeFulfillmentStatus(order.fulfillmentStatus);
-  if (!isCompletedFulfillmentStatus(fulfillmentStatus)) {
+  const shopifyFulfillmentStatus = isCompletedFulfillmentStatus(
+    fulfillmentStatus,
+  )
+    ? "FULFILLED"
+    : fulfillmentStatus === "Unfulfilled"
+      ? "UNFULFILLED"
+      : null;
+  if (!shopifyFulfillmentStatus) {
     throw new Error(
-      `Fulfillment Status is "${fulfillmentStatus}". Only completed (Fulfilled) orders can be imported.`,
+      `Fulfillment Status is "${fulfillmentStatus}". Use Fulfilled or Unfulfilled before importing.`,
     );
   }
   const response = await admin.graphql(ORDER_CREATE, {
@@ -319,7 +326,7 @@ export async function createHistoricalOrder(
         shippingAddress: order.shippingAddress ?? undefined,
         currency: order.currency,
         financialStatus: financialStatus(order.financialStatus),
-        fulfillmentStatus: "FULFILLED",
+        fulfillmentStatus: shopifyFulfillmentStatus,
         processedAt: order.processedAt?.toISOString(),
         note: order.note || "Imported by KDC Order Importer",
         tags: order.tags,

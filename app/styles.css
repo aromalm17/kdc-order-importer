@@ -367,6 +367,24 @@ body {
   justify-content: flex-end;
 }
 
+.kdc-bulk-fulfillment {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #dedede;
+}
+
+.kdc-bulk-fulfillment label {
+  display: grid;
+  gap: 3px;
+}
+
+.kdc-bulk-fulfillment label span {
+  color: #616161;
+  font-size: 13px;
+}
+
 .kdc-preorder-message-preview {
   padding: 14px 16px;
   border: 1px solid #c9c9c9;

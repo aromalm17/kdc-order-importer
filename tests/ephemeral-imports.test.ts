@@ -13,10 +13,12 @@ import {
   getEphemeralJob,
   getSelectedReadyOrders,
   importReadyOrders,
+  markOrdersUnfulfilled,
   pendingCsv,
   pendingWorkbook,
   type EphemeralJob,
 } from "../app/services/ephemeral-imports.server";
+import { hasBlockingIssues } from "../app/services/workbook.server";
 
 vi.mock("../app/services/shopify-orders.server", () => ({
   createHistoricalOrder: vi.fn(),
@@ -180,6 +182,47 @@ describe("Selective pending-order import", () => {
     expect(getEphemeralJob(shop, job.id)).toBeUndefined();
     expect(getEphemeralJob(shop)).toBeUndefined();
     expect(clearEphemeralJob(shop, job.id)).toBe(false);
+  });
+
+  it("marks pasted pending order numbers Unfulfilled in bulk", () => {
+    const first = parsedOrder("key-1");
+    first.sourceOrderId = "1674";
+    first.sourceOrderName = "#1674";
+    const second = parsedOrder("key-2");
+    second.sourceOrderId = "1673";
+    second.sourceOrderName = "#1673";
+    const untouched = parsedOrder("key-3");
+    untouched.sourceOrderName = "#1672";
+    const job = {
+      pending: [first, second, untouched],
+      status: "PREVIEW",
+      currentMessage: "Ready for review",
+      updatedAt: new Date(0),
+    } as EphemeralJob;
+
+    const result = markOrdersUnfulfilled(job, "#1674, 1673\n#9999; #1674");
+
+    expect(result).toEqual({
+      requested: 3,
+      marked: 2,
+      notFound: ["#9999"],
+    });
+    expect(first.fulfillmentStatus).toBe("Unfulfilled");
+    expect(second.fulfillmentStatus).toBe("Unfulfilled");
+    expect(untouched.fulfillmentStatus).toBeUndefined();
+    expect(first.issues).not.toContainEqual(
+      expect.objectContaining({
+        code: "INCOMPLETE_FULFILLMENT_STATUS",
+      }),
+    );
+    expect(hasBlockingIssues(first)).toBe(false);
+    expect(hasBlockingIssues(second)).toBe(false);
+    expect(hasBlockingIssues(untouched)).toBe(false);
+    expect(job.status).toBe("PENDING");
+    expect(job.currentMessage).toBe(
+      "2 orders marked Unfulfilled and ready for import",
+    );
+    expect(job.updatedAt.getTime()).toBeGreaterThan(0);
   });
 
   it("retains fulfillment status in the pending export", () => {

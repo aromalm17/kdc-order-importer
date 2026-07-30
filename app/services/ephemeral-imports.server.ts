@@ -112,6 +112,57 @@ export function clearEphemeralJob(shop: string, id: string) {
   return true;
 }
 
+function normalizedOrderNumber(value: string) {
+  return value.trim().replace(/^#/, "").toLowerCase();
+}
+
+export function markOrdersUnfulfilled(
+  job: EphemeralJob,
+  pastedOrderNumbers: string,
+) {
+  const requested = new Map<string, string>();
+  for (const value of pastedOrderNumbers.split(/[\s,;]+/)) {
+    const normalized = normalizedOrderNumber(value);
+    if (normalized && !requested.has(normalized)) {
+      requested.set(normalized, value.trim());
+    }
+  }
+
+  const matched = new Set<string>();
+  for (const order of job.pending) {
+    const identifiers = [order.sourceOrderName, order.sourceOrderId]
+      .filter((value): value is string => Boolean(value))
+      .map(normalizedOrderNumber);
+    const requestedIdentifier = identifiers.find((identifier) =>
+      requested.has(identifier),
+    );
+    if (!requestedIdentifier) continue;
+
+    order.fulfillmentStatus = "Unfulfilled";
+    order.issues = order.issues.filter(
+      (issue) => issue.code !== "INCOMPLETE_FULFILLMENT_STATUS",
+    );
+    matched.add(requestedIdentifier);
+  }
+
+  const notFound = [...requested.entries()]
+    .filter(([identifier]) => !matched.has(identifier))
+    .map(([, original]) => original);
+  if (matched.size) {
+    job.status = "PENDING";
+    job.currentMessage = `${matched.size} order${
+      matched.size === 1 ? "" : "s"
+    } marked Unfulfilled and ready for import`;
+    job.updatedAt = new Date();
+  }
+
+  return {
+    requested: requested.size,
+    marked: matched.size,
+    notFound,
+  };
+}
+
 export function shopSummary(shop: string) {
   const job = getEphemeralJob(shop);
   return {

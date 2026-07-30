@@ -14,6 +14,7 @@ import {
   getCachedCustomerProfiles,
   getEphemeralJob,
   importReadyOrders,
+  markOrdersUnfulfilled,
 } from "../services/ephemeral-imports.server";
 import { hasBlockingIssues } from "../services/workbook.server";
 import {
@@ -98,6 +99,27 @@ export async function action({ request }: ActionFunctionArgs) {
     clearEphemeralJob(session.shop, job.id);
     return Response.json({ cleared: true });
   }
+  if (intent === "mark-unfulfilled") {
+    const orderNumbers = String(form.get("orderNumbers") || "");
+    const result = markOrdersUnfulfilled(job, orderNumbers);
+    if (!result.requested) {
+      return Response.json(
+        { error: "Enter at least one order number." },
+        { status: 400 },
+      );
+    }
+    if (!result.marked) {
+      return Response.json(
+        {
+          error:
+            "None of those order numbers were found in this pending import.",
+          ...result,
+        },
+        { status: 400 },
+      );
+    }
+    return Response.json(result);
+  }
   const selectedOrderKeys = [
     ...new Set(
       form
@@ -125,16 +147,19 @@ export default function PreviewOrders() {
   const data = useLoaderData<typeof loader>();
   const importer = useFetcher();
   const clearer = useFetcher();
+  const fulfillmentUpdater = useFetcher();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const confirmationDialog = useRef<HTMLDialogElement>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const [confirmation, setConfirmation] = useState("");
   const [selectedOrderKeys, setSelectedOrderKeys] = useState<string[]>([]);
+  const [bulkOrderNumbers, setBulkOrderNumbers] = useState("");
   const [downloadingPendingExcel, setDownloadingPendingExcel] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const importing = importer.state !== "idle" || data.job?.status === "RUNNING";
   const clearing = clearer.state !== "idle";
+  const updatingFulfillment = fulfillmentUpdater.state !== "idle";
   const readyOrderKeys = data.orders
     .filter((order) => !order.blocked)
     .map((order) => order.key);
@@ -150,6 +175,13 @@ export default function PreviewOrders() {
     ?.error;
   const clearerData = clearer.data as
     { cleared?: boolean; error?: string } | undefined;
+  const fulfillmentUpdateData = fulfillmentUpdater.data as
+    | {
+        marked?: number;
+        notFound?: string[];
+        error?: string;
+      }
+    | undefined;
 
   useEffect(() => {
     if (!importing) return;
@@ -277,6 +309,15 @@ export default function PreviewOrders() {
     clearer.submit(form, { method: "post" });
   }
 
+  function markPastedOrdersUnfulfilled() {
+    if (!data.job || updatingFulfillment || !bulkOrderNumbers.trim()) return;
+    const form = new FormData();
+    form.append("intent", "mark-unfulfilled");
+    form.append("jobId", data.job.id);
+    form.append("orderNumbers", bulkOrderNumbers);
+    fulfillmentUpdater.submit(form, { method: "post" });
+  }
+
   return (
     <s-page heading={`Pending — ${data.job.fileName}`}>
       <s-section>
@@ -319,6 +360,20 @@ export default function PreviewOrders() {
         {clearerData?.error ? (
           <s-banner tone="critical">{clearerData.error}</s-banner>
         ) : null}
+        {fulfillmentUpdateData?.error ? (
+          <s-banner tone="critical">{fulfillmentUpdateData.error}</s-banner>
+        ) : fulfillmentUpdateData?.marked ? (
+          <s-banner
+            tone={
+              fulfillmentUpdateData.notFound?.length ? "warning" : "success"
+            }
+          >
+            Marked {fulfillmentUpdateData.marked} order(s) Unfulfilled.
+            {fulfillmentUpdateData.notFound?.length
+              ? ` Not found: ${fulfillmentUpdateData.notFound.join(", ")}.`
+              : ""}
+          </s-banner>
+        ) : null}
         {downloadError ? (
           <s-banner tone="critical">{downloadError}</s-banner>
         ) : null}
@@ -339,6 +394,39 @@ export default function PreviewOrders() {
             <s-heading>{data.orders.length}</s-heading>
           </s-box>
         </s-grid>
+        <div className="kdc-bulk-fulfillment">
+          <label htmlFor="bulk-unfulfilled-orders">
+            <strong>Mark multiple orders Unfulfilled</strong>
+            <span>
+              Paste order numbers separated by commas, spaces, or new lines.
+              This marks them not shipped and keeps them ready to import.
+            </span>
+          </label>
+          <textarea
+            id="bulk-unfulfilled-orders"
+            className="kdc-textarea"
+            rows={3}
+            value={bulkOrderNumbers}
+            disabled={importing || clearing || updatingFulfillment}
+            placeholder="#1674, #1673, #1671, #1670"
+            onChange={(event) => setBulkOrderNumbers(event.currentTarget.value)}
+          />
+          <div className="kdc-form-actions">
+            <s-button
+              disabled={
+                importing ||
+                clearing ||
+                updatingFulfillment ||
+                !bulkOrderNumbers.trim()
+              }
+              onClick={markPastedOrdersUnfulfilled}
+            >
+              {updatingFulfillment
+                ? "Updating fulfillment…"
+                : "Mark as Unfulfilled"}
+            </s-button>
+          </div>
+        </div>
       </s-section>
       <dialog
         ref={confirmationDialog}

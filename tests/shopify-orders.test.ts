@@ -89,29 +89,63 @@ describe("Shopify order creation", () => {
     ).rejects.toThrow("verified Shopify variant ID");
   });
 
-  it.each(["Unfulfilled", "Awaiting shipment"])(
-    "refuses an incomplete order before GraphQL: %s",
-    async (fulfillmentStatus) => {
-      const graphql = vi.fn();
+  it("creates an Unfulfilled Shopify order without marking it shipped", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          orderCreate: {
+            order: { id: "gid://shopify/Order/2", name: "#1002" },
+            userErrors: [],
+          },
+        },
+      }),
+    });
 
-      await expect(
-        createHistoricalOrder({ graphql } as never, {
-          currency: "INR",
-          fulfillmentStatus,
-          tags: [],
-          lineItems: [
-            {
-              variantId: "gid://shopify/ProductVariant/100",
-              quantity: 1,
-              unitPrice: 649,
-            },
-          ],
+    await createHistoricalOrder({ graphql } as never, {
+      currency: "INR",
+      fulfillmentStatus: "Unfulfilled",
+      tags: [],
+      lineItems: [
+        {
+          variantId: "gid://shopify/ProductVariant/100",
+          quantity: 1,
+          unitPrice: 649,
+        },
+      ],
+    });
+
+    expect(graphql).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        variables: expect.objectContaining({
+          order: expect.objectContaining({
+            fulfillmentStatus: "UNFULFILLED",
+          }),
         }),
-      ).rejects.toThrow("Only completed (Fulfilled) orders can be imported");
+      }),
+    );
+  });
 
-      expect(graphql).not.toHaveBeenCalled();
-    },
-  );
+  it("refuses an unknown fulfillment status before GraphQL", async () => {
+    const graphql = vi.fn();
+
+    await expect(
+      createHistoricalOrder({ graphql } as never, {
+        currency: "INR",
+        fulfillmentStatus: "Awaiting shipment",
+        tags: [],
+        lineItems: [
+          {
+            variantId: "gid://shopify/ProductVariant/100",
+            quantity: 1,
+            unitPrice: 649,
+          },
+        ],
+      }),
+    ).rejects.toThrow("Use Fulfilled or Unfulfilled before importing");
+
+    expect(graphql).not.toHaveBeenCalled();
+  });
 
   it("refuses an invalid Excel price before GraphQL", async () => {
     const graphql = vi.fn();
