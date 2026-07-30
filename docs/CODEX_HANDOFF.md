@@ -395,6 +395,29 @@ are excluded from both the Excel and legacy CSV pending-export generators:
 - Production verification: normal `GET /auth/login` and `GET /` returned HTTP
   200.
 
+The Pending Orders status card now includes a bulk fulfillment-status editor:
+
+- The merchant can paste order numbers separated by commas, whitespace, new
+  lines, or semicolons, with or without the leading `#`.
+- **Mark as Unfulfilled** changes matching temporary import records to
+  `Unfulfilled`, meaning not shipped. It does not block those records or make
+  them Not Ready.
+- When imported, those records are created in Shopify with
+  `fulfillmentStatus: UNFULFILLED`; normal Fulfilled records continue to use
+  `FULFILLED`.
+- The action reports unmatched order numbers. It does not edit existing
+  Shopify orders or alter payment/product data.
+- Excel-provided incomplete fulfillment values still follow the mandatory
+  workbook validation rule above. This explicit merchant action removes only
+  the `INCOMPLETE_FULFILLMENT_STATUS` issue for the matching pending records.
+- Source commit: local `37383fc`; deployment-snapshot commit `653c251`
+- Render deploy: `dep-d9lcjabm8hqs738eclo0`
+- Validation: 65 tests, typecheck, lint, production build, formatting,
+  Shopify Admin GraphQL API `2026-07` code generation, and `git diff --check`
+  passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
+
 ## Important source locations
 
 - Pending list and confirmation UI: `app/routes/app.preview.tsx`
