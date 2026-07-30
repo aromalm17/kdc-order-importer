@@ -384,6 +384,17 @@ The Pending Orders status card now has a **Clear current import** action:
 - Production verification: normal `GET /auth/login` and `GET /` returned HTTP
   200.
 
+The **Download pending Excel** export now contains only not-ready/blocked
+orders. Ready orders remain visible and selectable in the pending screen but
+are excluded from both the Excel and legacy CSV pending-export generators:
+
+- Source commit: local `d253ace`; deployment-snapshot commit `e8d5f3e`
+- Render deploy: `dep-d9lcdaid0e5s73c8dnp0`
+- Validation: 64 tests, typecheck, lint, production build, formatting, and
+  `git diff --check` passed.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
+  200.
+
 ## Important source locations
 
 - Pending list and confirmation UI: `app/routes/app.preview.tsx`
