@@ -364,6 +364,7 @@ export async function createHistoricalOrder(
         lineItems: order.lineItems.map((line) => ({
           variantId: line.variantId,
           quantity: line.quantity,
+          requiresShipping: true,
           priceSet: {
             shopMoney: {
               amount: line.unitPrice,

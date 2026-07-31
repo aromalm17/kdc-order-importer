@@ -66,6 +66,7 @@ describe("Shopify order creation", () => {
               {
                 variantId: "gid://shopify/ProductVariant/100",
                 quantity: 2,
+                requiresShipping: true,
                 priceSet: {
                   shopMoney: {
                     amount: 649,
