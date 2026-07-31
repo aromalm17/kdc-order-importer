@@ -114,6 +114,11 @@ describe("Shopify order creation", () => {
     });
 
     await createHistoricalOrder({ graphql } as never, {
+      shippingAddress: {
+        address1: "Pavithram",
+        city: "Kozhikode",
+        countryCode: "IN",
+      },
       currency: "INR",
       fulfillmentStatus: "Unfulfilled",
       tags: [],
@@ -136,6 +141,26 @@ describe("Shopify order creation", () => {
         }),
       }),
     );
+  });
+
+  it("refuses to create an order without a customer default shipping address", async () => {
+    const graphql = vi.fn();
+
+    await expect(
+      createHistoricalOrder({ graphql } as never, {
+        currency: "INR",
+        tags: [],
+        lineItems: [
+          {
+            variantId: "gid://shopify/ProductVariant/100",
+            quantity: 1,
+            unitPrice: 649,
+          },
+        ],
+      }),
+    ).rejects.toThrow("customer default shipping address is required");
+
+    expect(graphql).not.toHaveBeenCalled();
   });
 
   it("refuses an unknown fulfillment status before GraphQL", async () => {

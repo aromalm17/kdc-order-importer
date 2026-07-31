@@ -7,6 +7,7 @@ import {
 } from "../app/services/shopify-orders.server";
 import { verifyOrderVariantImages } from "../app/services/variant-verification.server";
 import {
+  applyCustomerShippingAddressValidation,
   clearEphemeralJob,
   createEphemeralJob,
   getCachedCustomerProfiles,
@@ -32,6 +33,7 @@ function parsedOrder(key: string, blocked = false): ParsedOrder {
   return {
     sourceOrderId: key,
     deterministicKey: key,
+    customerEmail: "buyer@example.com",
     currency: "INR",
     shippingCharge: 0,
     tags: [],
@@ -52,7 +54,24 @@ describe("Selective pending-order import", () => {
   beforeEach(() => {
     vi.mocked(createHistoricalOrder).mockReset();
     vi.mocked(findCustomerProfilesByEmail).mockReset();
-    vi.mocked(findCustomerProfilesByEmail).mockResolvedValue(new Map());
+    vi.mocked(findCustomerProfilesByEmail).mockResolvedValue(
+      new Map([
+        [
+          "buyer@example.com",
+          {
+            email: "buyer@example.com",
+            defaultAddress: "Pavithram, Kozhikode, Kerala, 673016, India",
+            defaultShippingAddress: {
+              address1: "Pavithram",
+              city: "Kozhikode",
+              provinceCode: "KL",
+              zip: "673016",
+              countryCode: "IN",
+            },
+          },
+        ],
+      ]),
+    );
     vi.mocked(verifyOrderVariantImages).mockReset();
     vi.mocked(verifyOrderVariantImages).mockImplementation(
       async (_admin, orders) => orders,
@@ -65,6 +84,11 @@ describe("Selective pending-order import", () => {
       email: "buyer@example.com",
       phone: "+919645260931",
       defaultAddress: "Pavithram, Kozhikode, Kerala, 673016, India",
+      defaultShippingAddress: {
+        address1: "Pavithram",
+        city: "Kozhikode",
+        countryCode: "IN",
+      },
     };
     vi.mocked(findCustomerProfilesByEmail).mockResolvedValue(
       new Map([["buyer@example.com", cachedProfile]]),
@@ -127,6 +151,56 @@ describe("Selective pending-order import", () => {
     expect(profiles.get("new@example.com")).toEqual(newProfile);
   });
 
+  it("rechecks a missing default address after the customer is updated", async () => {
+    vi.mocked(findCustomerProfilesByEmail)
+      .mockResolvedValueOnce(
+        new Map([
+          [
+            "buyer@example.com",
+            {
+              email: "buyer@example.com",
+            },
+          ],
+        ]),
+      )
+      .mockResolvedValueOnce(
+        new Map([
+          [
+            "buyer@example.com",
+            {
+              email: "buyer@example.com",
+              defaultShippingAddress: {
+                address1: "Pavithram",
+                city: "Kozhikode",
+                countryCode: "IN",
+              },
+            },
+          ],
+        ]),
+      );
+    const job = {
+      updatedAt: new Date(),
+      customerProfiles: new Map(),
+    } as EphemeralJob;
+
+    const first = await getCachedCustomerProfiles(job, {} as never, [
+      "buyer@example.com",
+    ]);
+    const second = await getCachedCustomerProfiles(job, {} as never, [
+      "buyer@example.com",
+    ]);
+
+    expect(
+      first.get("buyer@example.com")?.defaultShippingAddress,
+    ).toBeUndefined();
+    expect(second.get("buyer@example.com")?.defaultShippingAddress).toEqual({
+      address1: "Pavithram",
+      city: "Kozhikode",
+      countryCode: "IN",
+    });
+    expect(findCustomerProfilesByEmail).toHaveBeenCalledTimes(2);
+  });
+
   it("returns only selected, ready, unique pending orders", () => {
     const job = {
       pending: [
@@ -164,6 +238,49 @@ describe("Selective pending-order import", () => {
     } as EphemeralJob;
 
     expect(getSelectedReadyOrders(job, [])).toEqual([]);
+  });
+
+  it("blocks orders when the Shopify customer has no default shipping address", () => {
+    const missingAddress = parsedOrder("missing-address");
+    const missingCustomer = parsedOrder("missing-customer");
+    missingCustomer.customerEmail = "unknown@example.com";
+    const lookupFailed = parsedOrder("lookup-failed");
+    lookupFailed.customerEmail = "retry@example.com";
+
+    applyCustomerShippingAddressValidation(
+      [missingAddress, missingCustomer, lookupFailed],
+      new Map([
+        [
+          "buyer@example.com",
+          {
+            email: "buyer@example.com",
+          },
+        ],
+        ["unknown@example.com", null],
+      ]),
+    );
+
+    expect(missingAddress.issues).toContainEqual(
+      expect.objectContaining({
+        code: "MISSING_CUSTOMER_DEFAULT_SHIPPING_ADDRESS",
+        severity: "error",
+      }),
+    );
+    expect(missingCustomer.issues).toContainEqual(
+      expect.objectContaining({
+        code: "SHOPIFY_CUSTOMER_NOT_FOUND",
+        severity: "error",
+      }),
+    );
+    expect(lookupFailed.issues).toContainEqual(
+      expect.objectContaining({
+        code: "CUSTOMER_SHIPPING_ADDRESS_LOOKUP_FAILED",
+        severity: "error",
+      }),
+    );
+    expect(hasBlockingIssues(missingAddress)).toBe(true);
+    expect(hasBlockingIssues(missingCustomer)).toBe(true);
+    expect(hasBlockingIssues(lookupFailed)).toBe(true);
   });
 
   it("clears the current temporary import and latest-shop reference", () => {
@@ -482,6 +599,44 @@ describe("Selective pending-order import", () => {
     );
     expect(job.pending).toEqual([]);
     expect(job.status).toBe("COMPLETED");
+  });
+
+  it("does not import when the matched customer has no default shipping address", async () => {
+    const order = parsedOrder("missing-default-address");
+    vi.mocked(findCustomerProfilesByEmail).mockResolvedValue(
+      new Map([
+        [
+          "buyer@example.com",
+          {
+            email: "buyer@example.com",
+          },
+        ],
+      ]),
+    );
+    const job = {
+      id: "job-missing-address",
+      shop: "example.myshopify.com",
+      fileName: "orders.xlsx",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      totalOrders: 1,
+      importedOrders: 0,
+      status: "PREVIEW",
+      currentMessage: "Ready for review",
+      pending: [order],
+      customerProfiles: new Map(),
+    } satisfies EphemeralJob;
+
+    await importReadyOrders(job, {} as never, [order.deterministicKey]);
+
+    expect(createHistoricalOrder).not.toHaveBeenCalled();
+    expect(order.issues).toContainEqual(
+      expect.objectContaining({
+        code: "MISSING_CUSTOMER_DEFAULT_SHIPPING_ADDRESS",
+      }),
+    );
+    expect(job.pending).toEqual([order]);
+    expect(job.status).toBe("PENDING");
   });
 
   it("never imports a selected blocked order", async () => {

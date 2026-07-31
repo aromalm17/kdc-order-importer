@@ -324,6 +324,16 @@ export async function createHistoricalOrder(
       `Fulfillment Status is "${fulfillmentStatus}". Use Fulfilled or Unfulfilled before importing.`,
     );
   }
+  if (
+    !order.shippingAddress ||
+    !Object.values(order.shippingAddress).some(
+      (value) => typeof value === "string" && value.trim(),
+    )
+  ) {
+    throw new Error(
+      "A Shopify customer default shipping address is required before importing the order.",
+    );
+  }
   const response = await admin.graphql(ORDER_CREATE, {
     variables: {
       order: {

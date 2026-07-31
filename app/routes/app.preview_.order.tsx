@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
+  applyCustomerShippingAddressValidation,
   getCachedCustomerProfiles,
   getEphemeralJob,
 } from "../services/ephemeral-imports.server";
@@ -19,17 +20,14 @@ export async function loader({ request }: LoaderFunctionArgs) {
   if (!job || !order) {
     return { jobId: job?.id ?? null, order: null };
   }
-  const needsCustomerProfile =
-    !order.customerName?.trim() ||
-    !order.customerPhone?.trim() ||
-    !order.shippingAddress?.trim();
-  const customerProfiles = needsCustomerProfile
-    ? await getCachedCustomerProfiles(job, admin, [order.customerEmail])
-    : new Map();
+  const customerProfiles = await getCachedCustomerProfiles(job, admin, [
+    order.customerEmail,
+  ]);
+  applyCustomerShippingAddressValidation([order], customerProfiles);
   const customer = customerProfiles.get(
     order.customerEmail?.trim().toLowerCase() ?? "",
   );
-  const shippingAddress = order.shippingAddress ?? customer?.defaultAddress;
+  const shippingAddress = customer?.defaultAddress;
 
   return {
     jobId: job.id,
@@ -39,11 +37,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
       customerEmail: order.customerEmail ?? customer?.email ?? "—",
       customerPhone: order.customerPhone ?? customer?.phone ?? "—",
       shippingAddress: shippingAddress ?? null,
-      shippingAddressSource: order.shippingAddress
-        ? "Workbook"
-        : shippingAddress
-          ? "Shopify customer profile"
-          : null,
+      shippingAddressSource: shippingAddress
+        ? "Shopify customer default address"
+        : null,
       billingAddress: order.billingAddress ?? null,
       note: order.note ?? null,
       tags: order.tags,
