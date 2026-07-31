@@ -11,6 +11,7 @@ export type DestinationField =
   | "fulfillmentStatus"
   | "billingAddress"
   | "shippingAddress"
+  | "shippingCharge"
   | "productTitle"
   | "variantTitle"
   | "productId"
@@ -63,6 +64,7 @@ export type ParsedOrder = {
   fulfillmentStatus?: string;
   billingAddress?: string;
   shippingAddress?: string;
+  shippingCharge: number;
   note?: string;
   tags: string[];
   lineItems: ParsedLineItem[];
@@ -77,4 +79,3 @@ export type WorkbookParseResult = {
   mapping: ColumnMapping;
   orders: ParsedOrder[];
 };
-

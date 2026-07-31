@@ -229,6 +229,110 @@ describe("workbook parser", () => {
     expect(hasBlockingIssues(parsed.orders[0])).toBe(true);
   });
 
+  it("parses Shipping Charge once for a grouped order", async () => {
+    const buffer = await workbookBuffer([
+      [
+        "Name",
+        "Customer: Email",
+        "Shipping Charge",
+        "Line: Title",
+        "Line: Image",
+        "Line: Variant ID",
+        "Line: Price",
+        "Line: Quantity",
+      ],
+      [
+        "#1001-S",
+        "buyer@example.com",
+        "₹120.00",
+        "Car A",
+        "https://cdn.shopify.com/s/files/1/a.jpg",
+        "10001",
+        949,
+        1,
+      ],
+      [
+        "#1001-S",
+        "",
+        "",
+        "Car B",
+        "https://cdn.shopify.com/s/files/1/b.jpg",
+        "10002",
+        1299,
+        1,
+      ],
+    ]);
+
+    const parsed = await parseWorkbook(buffer);
+
+    expect(parsed.orders).toHaveLength(1);
+    expect(parsed.orders[0].shippingCharge).toBe(120);
+    expect(hasBlockingIssues(parsed.orders[0])).toBe(false);
+  });
+
+  it("defaults a missing Shipping Charge to zero", async () => {
+    const buffer = await workbookBuffer([
+      [
+        "Name",
+        "Customer: Email",
+        "Line: Title",
+        "Line: Image",
+        "Line: Variant ID",
+        "Line: Price",
+        "Line: Quantity",
+      ],
+      [
+        "#1001-Z",
+        "buyer@example.com",
+        "Car",
+        "https://cdn.shopify.com/s/files/1/a.jpg",
+        "10001",
+        949,
+        1,
+      ],
+    ]);
+
+    const parsed = await parseWorkbook(buffer);
+
+    expect(parsed.orders[0].shippingCharge).toBe(0);
+    expect(hasBlockingIssues(parsed.orders[0])).toBe(false);
+  });
+
+  it("blocks an invalid Shipping Charge", async () => {
+    const buffer = await workbookBuffer([
+      [
+        "Name",
+        "Customer: Email",
+        "Shipping Charge",
+        "Line: Title",
+        "Line: Image",
+        "Line: Variant ID",
+        "Line: Price",
+        "Line: Quantity",
+      ],
+      [
+        "#1001-I",
+        "buyer@example.com",
+        -10,
+        "Car",
+        "https://cdn.shopify.com/s/files/1/a.jpg",
+        "10001",
+        949,
+        1,
+      ],
+    ]);
+
+    const parsed = await parseWorkbook(buffer);
+
+    expect(hasBlockingIssues(parsed.orders[0])).toBe(true);
+    expect(parsed.orders[0].issues).toContainEqual(
+      expect.objectContaining({
+        code: "INVALID_SHIPPING_CHARGE",
+        field: "shippingCharge",
+      }),
+    );
+  });
+
   it("blocks the entire order when a line lacks variant or public image", async () => {
     const buffer = await workbookBuffer([
       [

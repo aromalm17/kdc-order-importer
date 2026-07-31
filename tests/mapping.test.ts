@@ -38,4 +38,11 @@ describe("column mapping", () => {
       expect(detectMapping([header]).fulfillmentStatus).toBe(header);
     },
   );
+
+  it.each(["Shipping Charge", "Shipping Price", "Shipping Amount"])(
+    "detects the shipping charge column: %s",
+    (header) => {
+      expect(detectMapping([header]).shippingCharge).toBe(header);
+    },
+  );
 });

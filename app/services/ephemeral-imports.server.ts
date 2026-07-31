@@ -244,6 +244,7 @@ export async function importReadyOrders(
       await createHistoricalOrder(admin, {
         ...order,
         shippingAddress: customerProfile?.defaultShippingAddress,
+        shippingCharge: order.shippingCharge,
         lineItems: order.lineItems.map((line) => ({
           variantId: line.variantId ?? null,
           quantity: line.quantity,
@@ -294,6 +295,7 @@ export function pendingCsv(job: EphemeralJob) {
     "Customer email",
     "Processed at",
     "Fulfillment Status",
+    "Shipping Charge",
     "Product",
     "Variant ID",
     "SKU",
@@ -307,6 +309,7 @@ export function pendingCsv(job: EphemeralJob) {
       order.customerEmail ?? "",
       order.processedAt?.toISOString() ?? "",
       order.fulfillmentStatus ?? "Fulfilled",
+      order.shippingCharge,
       line.productTitle,
       line.variantId ?? "",
       line.sku ?? "",
@@ -338,6 +341,7 @@ export async function pendingWorkbook(job: EphemeralJob) {
       key: "fulfillmentStatus",
       width: 22,
     },
+    { header: "Shipping Charge", key: "shippingCharge", width: 18 },
     { header: "Product", key: "product", width: 34 },
     { header: "Variant", key: "variant", width: 22 },
     { header: "Variant ID", key: "variantId", width: 24 },
@@ -362,6 +366,7 @@ export async function pendingWorkbook(job: EphemeralJob) {
         email: order.customerEmail ?? "",
         processedAt: order.processedAt?.toISOString() ?? "",
         fulfillmentStatus: order.fulfillmentStatus ?? "Fulfilled",
+        shippingCharge: order.shippingCharge,
         product: line.productTitle,
         variant: line.variantTitle ?? "",
         variantId: line.variantId ?? "",
@@ -377,6 +382,7 @@ export async function pendingWorkbook(job: EphemeralJob) {
     }
   }
   sheet.getColumn("price").numFmt = "₹#,##0.00";
-  sheet.autoFilter = { from: "A1", to: "M1" };
+  sheet.getColumn("shippingCharge").numFmt = "₹#,##0.00";
+  sheet.autoFilter = { from: "A1", to: "N1" };
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

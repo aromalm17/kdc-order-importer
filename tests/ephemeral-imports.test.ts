@@ -33,6 +33,7 @@ function parsedOrder(key: string, blocked = false): ParsedOrder {
     sourceOrderId: key,
     deterministicKey: key,
     currency: "INR",
+    shippingCharge: 0,
     tags: [],
     lineItems: [],
     issues: blocked
@@ -244,6 +245,26 @@ describe("Selective pending-order import", () => {
     expect(csv).toContain('"Unfulfilled"');
   });
 
+  it("retains the order-level shipping charge in the pending export", () => {
+    const order = parsedOrder("shipping", true);
+    order.shippingCharge = 120;
+    order.lineItems = [
+      {
+        sourceRowNumber: 2,
+        productTitle: "Car",
+        quantity: 1,
+        unitPrice: 949,
+        rawRow: {},
+        issues: [],
+      },
+    ];
+
+    const csv = pendingCsv({ pending: [order] } as EphemeralJob);
+
+    expect(csv).toContain('"Shipping Charge"');
+    expect(csv).toContain('"120"');
+  });
+
   it("exports only not-ready orders to the pending workbook", async () => {
     const ready = parsedOrder("ready");
     ready.sourceOrderName = "#1001";
@@ -279,7 +300,7 @@ describe("Selective pending-order import", () => {
 
     expect(sheet?.rowCount).toBe(2);
     expect(sheet?.getCell("A2").value).toBe("#1002");
-    expect(sheet?.getCell("F2").value).toBe("Blocked car");
+    expect(sheet?.getCell("G2").value).toBe("Blocked car");
   });
 
   it("imports and removes only the selected ready order", async () => {
@@ -358,6 +379,47 @@ describe("Selective pending-order import", () => {
           },
         ],
       }),
+    );
+  });
+
+  it("passes the Excel shipping charge once at order level", async () => {
+    vi.mocked(createHistoricalOrder).mockResolvedValue({
+      id: "gid://shopify/Order/1",
+      name: "#1001",
+    });
+    const order = parsedOrder("ready-with-shipping");
+    order.shippingCharge = 150;
+    order.lineItems = [
+      {
+        sourceRowNumber: 2,
+        productTitle: "Car",
+        variantId: "gid://shopify/ProductVariant/100",
+        quantity: 2,
+        unitPrice: 649,
+        imageUrl: "https://cdn.shopify.com/s/files/1/car.jpg",
+        rawRow: {},
+        issues: [],
+      },
+    ];
+    const job = {
+      id: "job-shipping",
+      shop: "example.myshopify.com",
+      fileName: "orders.xlsx",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      totalOrders: 1,
+      importedOrders: 0,
+      status: "PREVIEW",
+      currentMessage: "Ready for review",
+      pending: [order],
+      customerProfiles: new Map(),
+    } satisfies EphemeralJob;
+
+    await importReadyOrders(job, {} as never, [order.deterministicKey]);
+
+    expect(createHistoricalOrder).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ shippingCharge: 150 }),
     );
   });
 

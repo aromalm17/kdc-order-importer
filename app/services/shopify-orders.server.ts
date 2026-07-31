@@ -19,6 +19,7 @@ export type ImportableOrder = {
   currency: string;
   financialStatus?: string | null;
   fulfillmentStatus?: string | null;
+  shippingCharge?: number | null;
   note?: string | null;
   tags: string[];
   processedAt?: Date | null;
@@ -304,6 +305,12 @@ export async function createHistoricalOrder(
       "Every line item must have a valid zero or positive Excel price.",
     );
   }
+  const shippingCharge = order.shippingCharge ?? 0;
+  if (!Number.isFinite(shippingCharge) || shippingCharge < 0) {
+    throw new Error(
+      "Shipping Charge must be a valid zero or positive Excel amount.",
+    );
+  }
   const fulfillmentStatus = normalizeFulfillmentStatus(order.fulfillmentStatus);
   const shopifyFulfillmentStatus = isCompletedFulfillmentStatus(
     fulfillmentStatus,
@@ -330,6 +337,20 @@ export async function createHistoricalOrder(
         processedAt: order.processedAt?.toISOString(),
         note: order.note || "Imported by KDC Order Importer",
         tags: order.tags,
+        shippingLines:
+          shippingCharge > 0
+            ? [
+                {
+                  title: "Shipping",
+                  priceSet: {
+                    shopMoney: {
+                      amount: shippingCharge,
+                      currencyCode: order.currency,
+                    },
+                  },
+                },
+              ]
+            : undefined,
         lineItems: order.lineItems.map((line) => ({
           variantId: line.variantId,
           quantity: line.quantity,

@@ -51,11 +51,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
       currency: order.currency,
       financialStatus: order.financialStatus ?? "—",
       fulfillmentStatus: order.fulfillmentStatus ?? "—",
+      shippingCharge: order.shippingCharge,
       blocked: hasBlockingIssues(order),
       issues: order.issues.map((issue) => issue.message),
       total: order.lineItems.reduce(
         (sum, line) => sum + line.unitPrice * line.quantity,
-        0,
+        order.shippingCharge,
       ),
       itemQuantity: order.lineItems.reduce(
         (sum, line) => sum + line.quantity,
@@ -108,10 +109,7 @@ export default function PendingOrderDetail() {
 
   return (
     <s-page heading={`Order ${data.order.source}`}>
-      <s-button
-        slot="secondary-actions"
-        onClick={() => navigate(backHref)}
-      >
+      <s-button slot="secondary-actions" onClick={() => navigate(backHref)}>
         Back to pending orders
       </s-button>
 
@@ -146,7 +144,7 @@ export default function PendingOrderDetail() {
                     : "kdc-status--ready"
                 }`}
               >
-                {data.order.blocked ? "Blocked" : "Ready"}
+                {data.order.blocked ? "Not Ready" : "Ready"}
               </span>
             </div>
             <div>Payment: {data.order.financialStatus}</div>
@@ -161,12 +159,11 @@ export default function PendingOrderDetail() {
               {data.order.itemQuantity} item(s) across{" "}
               {data.order.lineItems.length} line(s)
             </div>
+            <div>Shipping: {money.format(data.order.shippingCharge)}</div>
           </div>
         </div>
         {data.order.issues.length ? (
-          <s-banner tone="critical">
-            {data.order.issues.join(" · ")}
-          </s-banner>
+          <s-banner tone="critical">{data.order.issues.join(" · ")}</s-banner>
         ) : null}
       </s-section>
 

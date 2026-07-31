@@ -401,13 +401,24 @@ export async function parseWorkbook(
       const incompleteFulfillmentStatus = fulfillmentStatuses.find(
         (status) => !isCompletedFulfillmentStatus(status),
       );
-      const fulfillmentStatus =
-        incompleteFulfillmentStatus ?? "Fulfilled";
+      const fulfillmentStatus = incompleteFulfillmentStatus ?? "Fulfilled";
       if (incompleteFulfillmentStatus) {
         issues.push({
           code: "INCOMPLETE_FULFILLMENT_STATUS",
           message: `Fulfillment Status is "${incompleteFulfillmentStatus}". Only completed (Fulfilled) orders can be imported.`,
           field: "fulfillmentStatus",
+          severity: "error",
+        });
+      }
+      const shippingChargeRaw = firstValue(rows, mapping.shippingCharge);
+      const shippingChargeResult = moneySchema.safeParse(
+        (shippingChargeRaw || "0").replace(/[₹,\s]/g, ""),
+      );
+      if (!shippingChargeResult.success) {
+        issues.push({
+          code: "INVALID_SHIPPING_CHARGE",
+          message: "Shipping Charge must be zero or a positive number.",
+          field: "shippingCharge",
           severity: "error",
         });
       }
@@ -450,6 +461,9 @@ export async function parseWorkbook(
         shippingAddress:
           firstValue(rows, mapping.shippingAddress) ??
           composedAddress(rows, "Shipping"),
+        shippingCharge: shippingChargeResult.success
+          ? shippingChargeResult.data
+          : 0,
         note: firstValue(rows, mapping.notes),
         tags: ["Order Import"],
         lineItems,

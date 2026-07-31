@@ -33,6 +33,7 @@ describe("Shopify order creation", () => {
       },
       currency: "INR",
       financialStatus: "Paid",
+      shippingCharge: 120,
       tags: ["KDC-Historical-Import"],
       lineItems: [
         {
@@ -50,6 +51,17 @@ describe("Shopify order creation", () => {
           options: { sendReceipt: false, sendFulfillmentReceipt: false },
           order: expect.objectContaining({
             fulfillmentStatus: "FULFILLED",
+            shippingLines: [
+              {
+                title: "Shipping",
+                priceSet: {
+                  shopMoney: {
+                    amount: 120,
+                    currencyCode: "INR",
+                  },
+                },
+              },
+            ],
             lineItems: [
               {
                 variantId: "gid://shopify/ProductVariant/100",
@@ -163,6 +175,27 @@ describe("Shopify order creation", () => {
         ],
       }),
     ).rejects.toThrow("valid zero or positive Excel price");
+
+    expect(graphql).not.toHaveBeenCalled();
+  });
+
+  it("refuses an invalid Excel shipping charge before GraphQL", async () => {
+    const graphql = vi.fn();
+
+    await expect(
+      createHistoricalOrder({ graphql } as never, {
+        currency: "INR",
+        shippingCharge: -1,
+        tags: [],
+        lineItems: [
+          {
+            variantId: "gid://shopify/ProductVariant/100",
+            quantity: 1,
+            unitPrice: 649,
+          },
+        ],
+      }),
+    ).rejects.toThrow("Shipping Charge must be a valid zero or positive");
 
     expect(graphql).not.toHaveBeenCalled();
   });

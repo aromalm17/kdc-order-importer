@@ -24,6 +24,7 @@ export const MATRIXIFY_MAPPING: ColumnMapping = {
   currency: "Currency",
   financialStatus: "Financial Status",
   fulfillmentStatus: "Fulfillment Status",
+  shippingCharge: "Shipping Charge",
   productTitle: "Line: Title",
   variantTitle: "Line: Variant Title",
   variantId: "Line: Variant ID",
@@ -46,6 +47,12 @@ const aliases: Record<DestinationField, string[]> = {
   fulfillmentStatus: ["fulfillment status", "fulfilment status"],
   billingAddress: ["billing address"],
   shippingAddress: ["shipping address"],
+  shippingCharge: [
+    "shipping charge",
+    "shipping price",
+    "shipping amount",
+    "shipping line price",
+  ],
   productTitle: ["line title", "lineitem title", "product title"],
   variantTitle: ["line variant title", "variant title"],
   productId: ["line product id", "product id"],
@@ -61,7 +68,10 @@ const aliases: Record<DestinationField, string[]> = {
 };
 
 const canonical = (value: string) =>
-  value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 export function detectMapping(headers: string[]): ColumnMapping {
   const result: ColumnMapping = {};

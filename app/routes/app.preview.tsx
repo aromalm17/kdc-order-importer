@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Link,
   useFetcher,
@@ -72,12 +72,28 @@ export async function loader({ request }: LoaderFunctionArgs) {
       date: order.processedAt?.toISOString() ?? null,
       items: order.lineItems.length,
       fulfillmentStatus: order.fulfillmentStatus ?? "Fulfilled",
+      shippingCharge: order.shippingCharge,
       total: order.lineItems.reduce(
         (sum, item) => sum + item.unitPrice * item.quantity,
-        0,
+        order.shippingCharge,
       ),
       blocked: hasBlockingIssues(order),
       issue: order.issues[0]?.message ?? "Ready",
+      searchText: [
+        order.sourceOrderName,
+        order.sourceOrderId,
+        order.customerName,
+        order.customerEmail,
+        ...order.lineItems.flatMap((line) => [
+          line.productTitle,
+          line.variantTitle,
+          line.variantId,
+          line.sku,
+        ]),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase(),
     })),
   };
 }
@@ -155,22 +171,66 @@ export default function PreviewOrders() {
   const [confirmation, setConfirmation] = useState("");
   const [selectedOrderKeys, setSelectedOrderKeys] = useState<string[]>([]);
   const [bulkOrderNumbers, setBulkOrderNumbers] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [fulfillmentFilter, setFulfillmentFilter] = useState("all");
+  const [readinessFilter, setReadinessFilter] = useState("all");
   const [downloadingPendingExcel, setDownloadingPendingExcel] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const importing = importer.state !== "idle" || data.job?.status === "RUNNING";
   const clearing = clearer.state !== "idle";
   const updatingFulfillment = fulfillmentUpdater.state !== "idle";
-  const readyOrderKeys = data.orders
-    .filter((order) => !order.blocked)
-    .map((order) => order.key);
-  const readyOrderKeySet = new Set(readyOrderKeys);
-  const selectedReadyOrderKeys = selectedOrderKeys.filter((key) =>
-    readyOrderKeySet.has(key),
+  const readyOrderKeys = useMemo(
+    () =>
+      data.orders.filter((order) => !order.blocked).map((order) => order.key),
+    [data.orders],
   );
-  const selectedOrderKeySet = new Set(selectedReadyOrderKeys);
+  const readyOrderKeySet = useMemo(
+    () => new Set(readyOrderKeys),
+    [readyOrderKeys],
+  );
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const filteredOrders = useMemo(
+    () =>
+      data.orders.filter((order) => {
+        const matchesSearch =
+          !normalizedSearchQuery ||
+          order.searchText.includes(normalizedSearchQuery);
+        const matchesFulfillment =
+          fulfillmentFilter === "all" ||
+          order.fulfillmentStatus === fulfillmentFilter;
+        const matchesReadiness =
+          readinessFilter === "all" ||
+          (readinessFilter === "ready" ? !order.blocked : order.blocked);
+        return matchesSearch && matchesFulfillment && matchesReadiness;
+      }),
+    [data.orders, fulfillmentFilter, normalizedSearchQuery, readinessFilter],
+  );
+  const visibleReadyOrderKeys = useMemo(
+    () =>
+      filteredOrders
+        .filter((order) => !order.blocked)
+        .map((order) => order.key),
+    [filteredOrders],
+  );
+  const fulfillmentOptions = useMemo(
+    () =>
+      [...new Set(data.orders.map((order) => order.fulfillmentStatus))].sort(
+        (left, right) => left.localeCompare(right),
+      ),
+    [data.orders],
+  );
+  const selectedReadyOrderKeys = useMemo(
+    () => selectedOrderKeys.filter((key) => readyOrderKeySet.has(key)),
+    [readyOrderKeySet, selectedOrderKeys],
+  );
+  const selectedOrderKeySet = useMemo(
+    () => new Set(selectedReadyOrderKeys),
+    [selectedReadyOrderKeys],
+  );
   const selectedCount = selectedReadyOrderKeys.length;
   const allReadySelected =
-    readyOrderKeys.length > 0 && selectedCount === readyOrderKeys.length;
+    visibleReadyOrderKeys.length > 0 &&
+    visibleReadyOrderKeys.every((key) => selectedOrderKeySet.has(key));
   const importerError = (importer.data as { error?: string } | undefined)
     ?.error;
   const clearerData = clearer.data as
@@ -191,9 +251,13 @@ export default function PreviewOrders() {
 
   useEffect(() => {
     if (!selectAllRef.current) return;
+    const visibleSelectedCount = visibleReadyOrderKeys.filter((key) =>
+      selectedOrderKeySet.has(key),
+    ).length;
     selectAllRef.current.indeterminate =
-      selectedCount > 0 && selectedCount < readyOrderKeys.length;
-  }, [readyOrderKeys.length, selectedCount]);
+      visibleSelectedCount > 0 &&
+      visibleSelectedCount < visibleReadyOrderKeys.length;
+  }, [selectedOrderKeySet, visibleReadyOrderKeys]);
 
   useEffect(() => {
     if (clearerData?.cleared) {
@@ -224,7 +288,12 @@ export default function PreviewOrders() {
   }
 
   function toggleAllReadyOrders(checked: boolean) {
-    setSelectedOrderKeys(checked ? readyOrderKeys : []);
+    const visibleReadySet = new Set(visibleReadyOrderKeys);
+    setSelectedOrderKeys((current) =>
+      checked
+        ? [...new Set([...current, ...visibleReadyOrderKeys])]
+        : current.filter((key) => !visibleReadySet.has(key)),
+    );
   }
 
   async function downloadPendingExcel() {
@@ -495,6 +564,55 @@ export default function PreviewOrders() {
         </div>
       </dialog>
       <s-section heading="Pending only">
+        <div className="kdc-pending-filters">
+          <label className="kdc-pending-search" htmlFor="pending-order-search">
+            <span>Search orders</span>
+            <input
+              id="pending-order-search"
+              className="kdc-text-input"
+              type="search"
+              value={searchQuery}
+              placeholder="Order, customer, email, product, SKU, or variant ID"
+              onChange={(event) => setSearchQuery(event.currentTarget.value)}
+            />
+          </label>
+          <label htmlFor="pending-fulfillment-filter">
+            <span>Fulfillment Status</span>
+            <select
+              id="pending-fulfillment-filter"
+              className="kdc-filter-select"
+              value={fulfillmentFilter}
+              onChange={(event) =>
+                setFulfillmentFilter(event.currentTarget.value)
+              }
+            >
+              <option value="all">All fulfillment statuses</option>
+              {fulfillmentOptions.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label htmlFor="pending-readiness-filter">
+            <span>Ready Status</span>
+            <select
+              id="pending-readiness-filter"
+              className="kdc-filter-select"
+              value={readinessFilter}
+              onChange={(event) =>
+                setReadinessFilter(event.currentTarget.value)
+              }
+            >
+              <option value="all">All ready statuses</option>
+              <option value="ready">Ready</option>
+              <option value="not-ready">Not Ready</option>
+            </select>
+          </label>
+          <div className="kdc-filter-summary" aria-live="polite">
+            Showing {filteredOrders.length} of {data.orders.length} orders
+          </div>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table className="kdc-table">
             <thead>
@@ -506,8 +624,8 @@ export default function PreviewOrders() {
                       className="kdc-order-checkbox"
                       type="checkbox"
                       checked={allReadySelected}
-                      disabled={importing || readyOrderKeys.length === 0}
-                      aria-label="Select all ready orders"
+                      disabled={importing || visibleReadyOrderKeys.length === 0}
+                      aria-label="Select all visible ready orders"
                       onChange={(event) =>
                         toggleAllReadyOrders(event.currentTarget.checked)
                       }
@@ -518,6 +636,7 @@ export default function PreviewOrders() {
                 <th>Customer</th>
                 <th>Date</th>
                 <th>Items</th>
+                <th>Shipping</th>
                 <th>Total</th>
                 <th>Fulfillment</th>
                 <th>Status</th>
@@ -525,7 +644,7 @@ export default function PreviewOrders() {
               </tr>
             </thead>
             <tbody>
-              {data.orders.map((order) => (
+              {filteredOrders.map((order) => (
                 <tr
                   key={order.key}
                   className={
@@ -584,12 +703,20 @@ export default function PreviewOrders() {
                       : "—"}
                   </td>
                   <td>{order.items}</td>
+                  <td>₹{order.shippingCharge.toFixed(2)}</td>
                   <td>₹{order.total.toFixed(2)}</td>
                   <td>{order.fulfillmentStatus}</td>
-                  <td>{order.blocked ? "Blocked" : "Ready"}</td>
+                  <td>{order.blocked ? "Not Ready" : "Ready"}</td>
                   <td className="kdc-issue">{order.issue}</td>
                 </tr>
               ))}
+              {!filteredOrders.length ? (
+                <tr>
+                  <td className="kdc-table-empty" colSpan={10}>
+                    No pending orders match these filters.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

@@ -385,6 +385,51 @@ body {
   font-size: 13px;
 }
 
+.kdc-pending-filters {
+  display: grid;
+  grid-template-columns: minmax(280px, 2fr) repeat(2, minmax(190px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.kdc-pending-filters label {
+  display: grid;
+  gap: 6px;
+  color: #303030;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.kdc-pending-filters .kdc-text-input {
+  margin-top: 0;
+}
+
+.kdc-filter-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 34px 9px 12px;
+  border: 1px solid #8a8a8a;
+  border-radius: 8px;
+  background: #fff;
+  color: #303030;
+  font: inherit;
+}
+
+.kdc-filter-summary {
+  padding: 11px 0;
+  color: #616161;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.kdc-table-empty {
+  padding: 28px !important;
+  color: #616161;
+  text-align: center !important;
+}
+
 .kdc-preorder-message-preview {
   padding: 14px 16px;
   border: 1px solid #c9c9c9;
@@ -560,6 +605,15 @@ body {
   .kdc-managed-search,
   .kdc-managed-variant-search {
     min-width: 100%;
+  }
+
+  .kdc-pending-filters {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .kdc-filter-summary {
+    padding-top: 0;
   }
 
   .kdc-form-grid,
