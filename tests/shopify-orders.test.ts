@@ -37,6 +37,7 @@ describe("Shopify order creation", () => {
       tags: ["KDC-Historical-Import"],
       lineItems: [
         {
+          title: "Excel Cadillac Coupe DeVille",
           variantId: "gid://shopify/ProductVariant/100",
           quantity: 2,
           unitPrice: 649,
@@ -64,6 +65,7 @@ describe("Shopify order creation", () => {
             ],
             lineItems: [
               {
+                title: "Excel Cadillac Coupe DeVille",
                 variantId: "gid://shopify/ProductVariant/100",
                 quantity: 2,
                 requiresShipping: true,

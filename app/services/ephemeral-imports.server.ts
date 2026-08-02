@@ -349,6 +349,7 @@ export async function importReadyOrders(
         shippingAddress: customerProfile?.defaultShippingAddress,
         shippingCharge: order.shippingCharge,
         lineItems: order.lineItems.map((line) => ({
+          title: line.productTitle,
           variantId: line.variantId ?? null,
           quantity: line.quantity,
           unitPrice: line.unitPrice,

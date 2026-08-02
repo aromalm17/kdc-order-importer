@@ -516,6 +516,7 @@ describe("Selective pending-order import", () => {
       expect.objectContaining({
         lineItems: [
           {
+            title: "Car",
             variantId: "gid://shopify/ProductVariant/100",
             quantity: 2,
             unitPrice: 649,

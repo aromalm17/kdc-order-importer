@@ -24,6 +24,7 @@ export type ImportableOrder = {
   tags: string[];
   processedAt?: Date | null;
   lineItems: {
+    title?: string | null;
     variantId: string | null;
     quantity: number;
     unitPrice: number;
@@ -362,6 +363,7 @@ export async function createHistoricalOrder(
               ]
             : undefined,
         lineItems: order.lineItems.map((line) => ({
+          title: line.title?.trim() || undefined,
           variantId: line.variantId,
           quantity: line.quantity,
           requiresShipping: true,
