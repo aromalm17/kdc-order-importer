@@ -96,6 +96,30 @@ export type VariantSearchResult = {
   product: { id: string; title: string };
 };
 
+export type BulkPreorderOrder = {
+  id: string;
+  name: string;
+  createdAt: string;
+  customerName?: string | null;
+  email?: string | null;
+  quantity: number;
+  preorderEta?: string | null;
+  preorderPendingPrice?: string | null;
+};
+
+export type BulkPreorderVariant = {
+  id: string;
+  productId: string;
+  title: string;
+  productTitle: string;
+  variantTitle: string;
+  sku?: string | null;
+  imageUrl?: string | null;
+  orderCount: number;
+  totalQuantity: number;
+  orders: BulkPreorderOrder[];
+};
+
 const ORDER_LIST_QUERY = `#graphql
   query KdcManagedOrders(
     $first: Int!
@@ -261,6 +285,49 @@ const VARIANT_SEARCH_QUERY = `#graphql
   }
 `;
 
+const BULK_PREORDER_ORDERS_QUERY = `#graphql
+  query KdcBulkPreorderOrders($first: Int!, $after: String) {
+    orders(first: $first, after: $after, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        createdAt
+        email
+        customer { displayName }
+        preorderEta: metafield(namespace: "custom", key: "preorder_eta") {
+          value
+        }
+        preorderPendingPrice: metafield(
+          namespace: "custom"
+          key: "preorder_pending_price"
+        ) {
+          value
+        }
+        lineItems(first: 25) {
+          nodes {
+            currentQuantity
+            variant {
+              id
+              title
+              sku
+              image { url }
+              product { id title }
+            }
+          }
+        }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+const bulkPreorderCache = new Map<
+  string,
+  { expiresAt: number; variants: BulkPreorderVariant[] }
+>();
+const BULK_PREORDER_CACHE_MS = 5 * 60 * 1000;
+const BULK_PREORDER_MAX_ORDERS = 1_000;
+
 function errorMessage(errors: Array<GraphqlError | UserError> | undefined) {
   return (
     errors
@@ -346,6 +413,142 @@ export async function listManagedOrders(
     })),
     pageInfo: data.orders.pageInfo,
   };
+}
+
+export function invalidateBulkPreorderCache(shop: string) {
+  bulkPreorderCache.delete(shop);
+}
+
+export async function listBulkPreorderVariants(
+  admin: AdminApiContext,
+  shop: string,
+  options?: { refresh?: boolean },
+) {
+  const cached = bulkPreorderCache.get(shop);
+  if (!options?.refresh && cached && cached.expiresAt > Date.now()) {
+    return cached.variants;
+  }
+
+  const grouped = new Map<
+    string,
+    Omit<BulkPreorderVariant, "orderCount" | "totalQuantity"> & {
+      orderIds: Set<string>;
+    }
+  >();
+  let after: string | null = null;
+  let scannedOrders = 0;
+
+  do {
+    const response: Response = (await admin.graphql(
+      BULK_PREORDER_ORDERS_QUERY,
+      {
+        variables: { first: 25, after },
+      },
+    )) as Response;
+    type BulkPreorderPage = {
+      orders: {
+        nodes: Array<{
+          id: string;
+          name: string;
+          createdAt: string;
+          email?: string | null;
+          customer?: { displayName: string } | null;
+          preorderEta?: { value: string } | null;
+          preorderPendingPrice?: { value: string } | null;
+          lineItems: {
+            nodes: Array<{
+              currentQuantity: number;
+              variant?: {
+                id: string;
+                title: string;
+                sku?: string | null;
+                image?: { url: string } | null;
+                product: { id: string; title: string };
+              } | null;
+            }>;
+          };
+        }>;
+        pageInfo: { hasNextPage: boolean; endCursor?: string | null };
+      };
+    };
+    const data: BulkPreorderPage = await readGraphql<BulkPreorderPage>(
+      response,
+      "Load bulk preorder products",
+    );
+
+    for (const order of data.orders.nodes) {
+      scannedOrders += 1;
+      for (const line of order.lineItems.nodes) {
+        const variant = line.variant;
+        if (!variant || line.currentQuantity <= 0) continue;
+        const variantTitle =
+          variant.title === "Default Title" ? "" : variant.title;
+        const title = variantTitle
+          ? `${variant.product.title} — ${variantTitle}`
+          : variant.product.title;
+        const current: Omit<
+          BulkPreorderVariant,
+          "orderCount" | "totalQuantity"
+        > & { orderIds: Set<string> } = grouped.get(variant.id) ?? {
+          id: variant.id,
+          productId: variant.product.id,
+          title,
+          productTitle: variant.product.title,
+          variantTitle,
+          sku: variant.sku ?? null,
+          imageUrl: variant.image?.url ?? null,
+          orders: [] as BulkPreorderOrder[],
+          orderIds: new Set<string>(),
+        };
+        const existing = current.orders.find((item) => item.id === order.id);
+        if (existing) {
+          existing.quantity += line.currentQuantity;
+        } else {
+          current.orders.push({
+            id: order.id,
+            name: order.name,
+            createdAt: order.createdAt,
+            customerName: order.customer?.displayName ?? null,
+            email: order.email ?? null,
+            quantity: line.currentQuantity,
+            preorderEta: order.preorderEta?.value ?? null,
+            preorderPendingPrice: order.preorderPendingPrice?.value ?? null,
+          });
+          current.orderIds.add(order.id);
+        }
+        grouped.set(variant.id, current);
+      }
+    }
+
+    after = data.orders.pageInfo.hasNextPage
+      ? (data.orders.pageInfo.endCursor ?? null)
+      : null;
+  } while (after && scannedOrders < BULK_PREORDER_MAX_ORDERS);
+
+  const variants = [...grouped.values()]
+    .map(({ orderIds, ...variant }) => ({
+      ...variant,
+      orderCount: orderIds.size,
+      totalQuantity: variant.orders.reduce(
+        (total, order) => total + order.quantity,
+        0,
+      ),
+      orders: variant.orders.sort(
+        (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
+      ),
+    }))
+    .sort(
+      (a, b) =>
+        b.orderCount - a.orderCount ||
+        Date.parse(b.orders[0]?.createdAt ?? "") -
+          Date.parse(a.orders[0]?.createdAt ?? ""),
+    );
+
+  bulkPreorderCache.set(shop, {
+    expiresAt: Date.now() + BULK_PREORDER_CACHE_MS,
+    variants,
+  });
+  return variants;
 }
 
 export async function getManagedOrder(
@@ -717,8 +920,7 @@ export async function updateManagedOrderPreorder(
   orderId: string,
   input: { eta: string; pendingPrice: string },
 ) {
-  const eta = input.eta.trim();
-  const pendingPriceText = input.pendingPrice.trim().replaceAll(",", "");
+  const { eta, pendingPriceText, pendingPrice } = normalizePreorderInput(input);
   if (!eta && !pendingPriceText) {
     const response = await admin.graphql(
       `#graphql
@@ -750,19 +952,6 @@ export async function updateManagedOrderPreorder(
     );
     return;
   }
-  if (!eta || !pendingPriceText) {
-    throw new Error(
-      "Enter both the preorder ETA and pending price, or clear both fields.",
-    );
-  }
-  if (eta.length > 120) {
-    throw new Error("Preorder ETA must be 120 characters or fewer.");
-  }
-  const pendingPrice = Number(pendingPriceText);
-  if (!Number.isFinite(pendingPrice) || pendingPrice < 0) {
-    throw new Error("Pending price must be zero or a positive amount.");
-  }
-
   await ensurePreorderMetafieldDefinitions(admin);
   const response = await admin.graphql(
     `#graphql
@@ -790,7 +979,7 @@ export async function updateManagedOrderPreorder(
             namespace: PREORDER_METAFIELD_NAMESPACE,
             key: "preorder_pending_price",
             type: "number_decimal",
-            value: pendingPrice.toFixed(2),
+            value: pendingPrice!.toFixed(2),
           },
         ],
       },
@@ -800,6 +989,129 @@ export async function updateManagedOrderPreorder(
     metafieldsSet: { userErrors: UserError[] };
   }>(response as Response, "Update preorder message");
   assertNoUserErrors(data.metafieldsSet.userErrors, "Update preorder message");
+}
+
+function normalizePreorderInput(input: { eta: string; pendingPrice: string }) {
+  const eta = input.eta.trim();
+  const pendingPriceText = input.pendingPrice.trim().replaceAll(",", "");
+  if (!eta && !pendingPriceText) {
+    return { eta, pendingPriceText, pendingPrice: null };
+  }
+  if (!eta || !pendingPriceText) {
+    throw new Error(
+      "Enter both the preorder ETA and pending price, or clear both fields.",
+    );
+  }
+  if (eta.length > 120) {
+    throw new Error("Preorder ETA must be 120 characters or fewer.");
+  }
+  const pendingPrice = Number(pendingPriceText);
+  if (!Number.isFinite(pendingPrice) || pendingPrice < 0) {
+    throw new Error("Pending price must be zero or a positive amount.");
+  }
+  return { eta, pendingPriceText, pendingPrice };
+}
+
+function chunks<T>(items: T[], size: number) {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    result.push(items.slice(index, index + size));
+  }
+  return result;
+}
+
+export async function updateBulkPreorderMessages(
+  admin: AdminApiContext,
+  orderIds: string[],
+  input: { eta: string; pendingPrice: string },
+) {
+  const uniqueOrderIds = [...new Set(orderIds)].filter((id) =>
+    id.startsWith("gid://shopify/Order/"),
+  );
+  if (!uniqueOrderIds.length) {
+    throw new Error("Select at least one matching order.");
+  }
+  const { eta, pendingPriceText, pendingPrice } = normalizePreorderInput(input);
+
+  if (!eta && !pendingPriceText) {
+    for (const batch of chunks(uniqueOrderIds, 100)) {
+      const response = await admin.graphql(
+        `#graphql
+          mutation KdcBulkClearPreorderMessages(
+            $metafields: [MetafieldIdentifierInput!]!
+          ) {
+            metafieldsDelete(metafields: $metafields) {
+              deletedMetafields { ownerId namespace key }
+              userErrors { field message }
+            }
+          }
+        `,
+        {
+          variables: {
+            metafields: batch.flatMap((ownerId) =>
+              PREORDER_METAFIELD_DEFINITIONS.map((definition) => ({
+                ownerId,
+                namespace: PREORDER_METAFIELD_NAMESPACE,
+                key: definition.key,
+              })),
+            ),
+          },
+        },
+      );
+      const data = await readGraphql<{
+        metafieldsDelete: { userErrors: UserError[] };
+      }>(response as Response, "Clear bulk preorder messages");
+      assertNoUserErrors(
+        data.metafieldsDelete.userErrors,
+        "Clear bulk preorder messages",
+      );
+    }
+    return uniqueOrderIds.length;
+  }
+
+  await ensurePreorderMetafieldDefinitions(admin);
+  for (const batch of chunks(uniqueOrderIds, 12)) {
+    const response = await admin.graphql(
+      `#graphql
+        mutation KdcBulkUpdatePreorderMessages(
+          $metafields: [MetafieldsSetInput!]!
+        ) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key value }
+            userErrors { field message code }
+          }
+        }
+      `,
+      {
+        variables: {
+          metafields: batch.flatMap((ownerId) => [
+            {
+              ownerId,
+              namespace: PREORDER_METAFIELD_NAMESPACE,
+              key: "preorder_eta",
+              type: "single_line_text_field",
+              value: eta,
+            },
+            {
+              ownerId,
+              namespace: PREORDER_METAFIELD_NAMESPACE,
+              key: "preorder_pending_price",
+              type: "number_decimal",
+              value: pendingPrice!.toFixed(2),
+            },
+          ]),
+        },
+      },
+    );
+    const data = await readGraphql<{
+      metafieldsSet: { userErrors: UserError[] };
+    }>(response as Response, "Update bulk preorder messages");
+    assertNoUserErrors(
+      data.metafieldsSet.userErrors,
+      "Update bulk preorder messages",
+    );
+  }
+  return uniqueOrderIds.length;
 }
 
 type CalculatedLine = {

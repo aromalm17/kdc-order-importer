@@ -41,6 +41,7 @@ export default function App() {
         <s-link href="/app/import/new">New Import</s-link>
         <s-link href="/app/preview">Pending Orders</s-link>
         <s-link href="/app/orders">Shopify Orders</s-link>
+        <s-link href="/app/preorders">Bulk Preorders</s-link>
         <s-link href="/app/help">Help</s-link>
       </s-app-nav>
       <Outlet />

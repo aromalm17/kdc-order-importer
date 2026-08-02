@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   editManagedOrderLine,
+  listBulkPreorderVariants,
   listManagedOrders,
   permanentlyDeleteManagedOrder,
   replaceManagedShippingCharge,
   updateManagedOrderContact,
   updateManagedOrderPreorder,
+  updateBulkPreorderMessages,
 } from "../app/services/shopify-order-manager.server";
 
 function response(data: unknown) {
@@ -74,6 +76,69 @@ describe("Shopify order manager", () => {
       },
     );
     expect(graphql.mock.calls[0][0]).not.toContain("displayFinancialStatus");
+  });
+
+  it("groups ordered products by exact variant and sorts by order count", async () => {
+    const variant = {
+      id: "gid://shopify/ProductVariant/200",
+      title: "Red",
+      sku: "CAD-RED",
+      image: { url: "https://cdn.shopify.com/s/files/1/cadillac.jpg" },
+      product: {
+        id: "gid://shopify/Product/100",
+        title: "Cadillac Coupe DeVille",
+      },
+    };
+    const graphql = vi.fn().mockResolvedValue(
+      response({
+        orders: {
+          nodes: [
+            {
+              id: "gid://shopify/Order/2",
+              name: "#1002",
+              createdAt: "2026-08-02T10:00:00Z",
+              email: "two@example.com",
+              customer: { displayName: "Two" },
+              preorderEta: { value: "August" },
+              preorderPendingPrice: { value: "2000.00" },
+              lineItems: {
+                nodes: [{ currentQuantity: 2, variant }],
+              },
+            },
+            {
+              id: "gid://shopify/Order/1",
+              name: "#1001",
+              createdAt: "2026-08-01T10:00:00Z",
+              email: "one@example.com",
+              customer: { displayName: "One" },
+              preorderEta: null,
+              preorderPendingPrice: null,
+              lineItems: {
+                nodes: [{ currentQuantity: 1, variant }],
+              },
+            },
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      }),
+    );
+
+    const variants = await listBulkPreorderVariants(
+      { graphql } as never,
+      "bulk-list-test.myshopify.com",
+    );
+
+    expect(variants[0]).toMatchObject({
+      id: "gid://shopify/ProductVariant/200",
+      productId: "gid://shopify/Product/100",
+      title: "Cadillac Coupe DeVille — Red",
+      orderCount: 2,
+      totalQuantity: 3,
+    });
+    expect(variants[0].orders.map((order) => order.name)).toEqual([
+      "#1002",
+      "#1001",
+    ]);
   });
 
   it("updates order contact and translates countryCodeV2 to MailingAddressInput", async () => {
@@ -199,6 +264,54 @@ describe("Shopify order manager", () => {
         value: "2100.00",
       },
     ]);
+  });
+
+  it("updates the preorder message across multiple selected orders", async () => {
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          eta: {
+            key: "preorder_eta",
+            type: { name: "single_line_text_field" },
+            access: { customerAccount: "READ" },
+          },
+          pendingPrice: {
+            key: "preorder_pending_price",
+            type: { name: "number_decimal" },
+            access: { customerAccount: "READ" },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          metafieldsSet: { metafields: [], userErrors: [] },
+        }),
+      );
+
+    const updated = await updateBulkPreorderMessages(
+      { graphql } as never,
+      ["gid://shopify/Order/1", "gid://shopify/Order/2"],
+      { eta: "first week of August", pendingPrice: "2,000" },
+    );
+
+    expect(updated).toBe(2);
+    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(graphql.mock.calls[1][1].variables.metafields).toHaveLength(4);
+    expect(graphql.mock.calls[1][1].variables.metafields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ownerId: "gid://shopify/Order/1",
+          key: "preorder_eta",
+          value: "first week of August",
+        }),
+        expect.objectContaining({
+          ownerId: "gid://shopify/Order/2",
+          key: "preorder_pending_price",
+          value: "2000.00",
+        }),
+      ]),
+    );
   });
 
   it("requires both preorder message fields without calling Shopify", async () => {
