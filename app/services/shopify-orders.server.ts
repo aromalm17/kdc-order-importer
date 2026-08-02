@@ -313,14 +313,8 @@ export async function createHistoricalOrder(
     );
   }
   const fulfillmentStatus = normalizeFulfillmentStatus(order.fulfillmentStatus);
-  const shopifyFulfillmentStatus = isCompletedFulfillmentStatus(
-    fulfillmentStatus,
-  )
-    ? "FULFILLED"
-    : fulfillmentStatus === "Unfulfilled"
-      ? "UNFULFILLED"
-      : null;
-  if (!shopifyFulfillmentStatus) {
+  const isFulfilled = isCompletedFulfillmentStatus(fulfillmentStatus);
+  if (!isFulfilled && fulfillmentStatus !== "Unfulfilled") {
     throw new Error(
       `Fulfillment Status is "${fulfillmentStatus}". Use Fulfilled or Unfulfilled before importing.`,
     );
@@ -344,7 +338,7 @@ export async function createHistoricalOrder(
         shippingAddress: order.shippingAddress ?? undefined,
         currency: order.currency,
         financialStatus: financialStatus(order.financialStatus),
-        fulfillmentStatus: shopifyFulfillmentStatus,
+        ...(isFulfilled ? { fulfillmentStatus: "FULFILLED" } : {}),
         processedAt: order.processedAt?.toISOString(),
         note: order.note || "Imported by KDC Order Importer",
         tags: order.tags,

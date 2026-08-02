@@ -134,16 +134,8 @@ describe("Shopify order creation", () => {
       ],
     });
 
-    expect(graphql).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        variables: expect.objectContaining({
-          order: expect.objectContaining({
-            fulfillmentStatus: "UNFULFILLED",
-          }),
-        }),
-      }),
-    );
+    const input = graphql.mock.calls[0][1].variables.order;
+    expect(input).not.toHaveProperty("fulfillmentStatus");
   });
 
   it("refuses to create an order without a customer default shipping address", async () => {
