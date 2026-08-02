@@ -96,7 +96,6 @@ export function applyVariantImageVerification(
   }
 
   line.variantId = `gid://shopify/ProductVariant/${numericId}`;
-  line.productTitle = verified.title;
   if (!verified.imageUrls.length) {
     line.issues.push({
       code: verified.hasUnreadyImage

@@ -536,6 +536,7 @@ describe("workbook parser", () => {
     });
     rebuildOrderIssues(parsed.orders[0]);
 
+    expect(line.productTitle).toBe("Car");
     expect(line.imageUrl).toBe(excelImage);
     expect(line.issues.map((issue) => issue.code)).toContain(
       "VARIANT_IMAGE_MISMATCH",
