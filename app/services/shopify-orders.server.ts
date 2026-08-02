@@ -69,6 +69,18 @@ type CustomerDefaultAddress = {
   phone?: string | null;
 };
 
+type CustomerWithAddresses = {
+  displayName?: string;
+  defaultEmailAddress?: { emailAddress?: string } | null;
+  defaultPhoneNumber?: { phoneNumber?: string } | null;
+  defaultAddress?: CustomerDefaultAddress | null;
+  addressesV2?: { nodes?: CustomerDefaultAddress[] } | null;
+};
+
+function preferredCustomerAddress(customer: CustomerWithAddresses) {
+  return customer.defaultAddress ?? customer.addressesV2?.nodes?.[0] ?? null;
+}
+
 function formatMailingAddress(address?: CustomerDefaultAddress | null) {
   if (!address) return undefined;
   const values = [
@@ -134,6 +146,23 @@ export async function findCustomerByEmail(
                 countryCodeV2
                 phone
               }
+              addressesV2(first: 1) {
+                nodes {
+                  name
+                  firstName
+                  lastName
+                  company
+                  address1
+                  address2
+                  city
+                  province
+                  provinceCode
+                  zip
+                  country
+                  countryCodeV2
+                  phone
+                }
+              }
             }
           }
         }
@@ -143,23 +172,19 @@ export async function findCustomerByEmail(
     const json = (await response.json()) as {
       data?: {
         customers?: {
-          nodes?: Array<{
-            displayName?: string;
-            defaultEmailAddress?: { emailAddress?: string } | null;
-            defaultPhoneNumber?: { phoneNumber?: string } | null;
-            defaultAddress?: CustomerDefaultAddress | null;
-          }>;
+          nodes?: CustomerWithAddresses[];
         };
       };
     };
     const customer = json.data?.customers?.nodes?.[0];
     if (!customer) return null;
+    const shippingAddress = preferredCustomerAddress(customer);
     return {
       displayName: customer.displayName,
       email: customer.defaultEmailAddress?.emailAddress,
       phone: customer.defaultPhoneNumber?.phoneNumber,
-      defaultAddress: formatMailingAddress(customer.defaultAddress),
-      defaultShippingAddress: structuredMailingAddress(customer.defaultAddress),
+      defaultAddress: formatMailingAddress(shippingAddress),
+      defaultShippingAddress: structuredMailingAddress(shippingAddress),
     };
   } catch {
     return null;
@@ -230,6 +255,23 @@ export async function findCustomerProfilesByEmail(
               countryCodeV2
               phone
             }
+            addressesV2(first: 1) {
+              nodes {
+                name
+                firstName
+                lastName
+                company
+                address1
+                address2
+                city
+                province
+                provinceCode
+                zip
+                country
+                countryCodeV2
+                phone
+              }
+            }
           }
         `,
       )
@@ -245,17 +287,15 @@ export async function findCustomerProfilesByEmail(
       const json = (await response.json()) as {
         data?: Record<
           string,
-          {
-            displayName?: string;
-            defaultEmailAddress?: { emailAddress?: string } | null;
-            defaultPhoneNumber?: { phoneNumber?: string } | null;
-            defaultAddress?: CustomerDefaultAddress | null;
-          } | null
+          CustomerWithAddresses | null
         >;
       };
 
       batch.forEach((email, index) => {
         const customer = json.data?.[`customer${index}`];
+        const shippingAddress = customer
+          ? preferredCustomerAddress(customer)
+          : null;
         customerProfiles.set(
           email,
           customer
@@ -263,10 +303,9 @@ export async function findCustomerProfilesByEmail(
                 displayName: customer.displayName,
                 email: customer.defaultEmailAddress?.emailAddress,
                 phone: customer.defaultPhoneNumber?.phoneNumber,
-                defaultAddress: formatMailingAddress(customer.defaultAddress),
-                defaultShippingAddress: structuredMailingAddress(
-                  customer.defaultAddress,
-                ),
+                defaultAddress: formatMailingAddress(shippingAddress),
+                defaultShippingAddress:
+                  structuredMailingAddress(shippingAddress),
               }
             : null,
         );
@@ -318,6 +357,11 @@ export async function createHistoricalOrder(
   if (!isFulfilled && fulfillmentStatus !== "Unfulfilled") {
     throw new Error(
       `Fulfillment Status is "${fulfillmentStatus}". Use Fulfilled or Unfulfilled before importing.`,
+    );
+  }
+  if (!order.shippingAddress?.address1?.trim()) {
+    throw new Error(
+      "A saved Shopify customer shipping address is required before importing the order.",
     );
   }
   const response = await admin.graphql(ORDER_CREATE, {

@@ -93,15 +93,52 @@ const CUSTOMER_SHIPPING_ISSUE_CODES = new Set([
   "CUSTOMER_SHIPPING_ADDRESS_LOOKUP_FAILED",
 ]);
 
-export function clearLegacyCustomerShippingAddressIssues(
+export function applyCustomerShippingAddressValidation(
   orders: ParsedOrder[],
+  customerProfiles: Map<string, CustomerVerificationProfile | null>,
 ) {
   for (const order of orders) {
-    // A customer default address is optional for historical imports. Clear
-    // address-related issues created under the former mandatory-address rule.
     order.issues = order.issues.filter(
       (issue) => !CUSTOMER_SHIPPING_ISSUE_CODES.has(issue.code),
     );
+    const email = normalizedEmail(order.customerEmail);
+    if (!email) {
+      order.issues.push({
+        code: "CUSTOMER_EMAIL_REQUIRED_FOR_SHIPPING",
+        message:
+          "Customer email is required to find the Shopify customer's saved shipping address.",
+        field: "shippingAddress",
+        severity: "error",
+      });
+      continue;
+    }
+    if (!customerProfiles.has(email)) {
+      order.issues.push({
+        code: "CUSTOMER_SHIPPING_ADDRESS_LOOKUP_FAILED",
+        message: `Could not verify a saved Shopify customer address for ${email}. Try again before importing.`,
+        field: "shippingAddress",
+        severity: "error",
+      });
+      continue;
+    }
+    const profile = customerProfiles.get(email);
+    if (!profile) {
+      order.issues.push({
+        code: "SHOPIFY_CUSTOMER_NOT_FOUND",
+        message: `No Shopify customer was found for ${email}. Create or match the customer and add an address before importing.`,
+        field: "shippingAddress",
+        severity: "error",
+      });
+      continue;
+    }
+    if (!profile.defaultShippingAddress?.address1?.trim()) {
+      order.issues.push({
+        code: "MISSING_CUSTOMER_DEFAULT_SHIPPING_ADDRESS",
+        message: `The Shopify customer ${email} has no usable saved address. Add an address before importing.`,
+        field: "shippingAddress",
+        severity: "error",
+      });
+    }
   }
   return orders;
 }
@@ -282,20 +319,27 @@ export async function importReadyOrders(
     return 0;
   }
 
-  let customerProfiles = job.customerProfiles;
-  try {
-    customerProfiles = await getCachedCustomerProfiles(
-      job,
-      admin,
-      verifiedCandidates.map((order) => order.customerEmail),
-    );
-  } catch {
-    // Customer-profile enrichment is optional. orderCreate can upsert the
-    // customer by email and create the historical order without an address.
+  const customerProfiles = await getCachedCustomerProfiles(
+    job,
+    admin,
+    verifiedCandidates.map((order) => order.customerEmail),
+  );
+  applyCustomerShippingAddressValidation(verifiedCandidates, customerProfiles);
+  const addressVerifiedCandidates = verifiedCandidates.filter(
+    (order) => !hasBlockingIssues(order),
+  );
+  const newlyAddressBlocked =
+    verifiedCandidates.length - addressVerifiedCandidates.length;
+  if (!addressVerifiedCandidates.length) {
+    job.status = "PENDING";
+    job.currentMessage = `${newlyAddressBlocked} selected order${
+      newlyAddressBlocked === 1 ? " is" : "s are"
+    } blocked because a saved Shopify customer address is required.`;
+    job.updatedAt = new Date();
+    return 0;
   }
-  clearLegacyCustomerShippingAddressIssues(verifiedCandidates);
   let importedThisRun = 0;
-  for (const order of verifiedCandidates) {
+  for (const order of addressVerifiedCandidates) {
     try {
       const customerProfile = order.customerEmail
         ? customerProfiles.get(order.customerEmail.trim().toLowerCase())
@@ -337,8 +381,8 @@ export async function importReadyOrders(
     ? `Imported ${importedThisRun} selected order${
         importedThisRun === 1 ? "" : "s"
       }; ${job.pending.length} remain pending${
-        newlyBlocked
-          ? ` (${newlyBlocked} newly blocked by current Shopify verification)`
+        newlyBlocked || newlyAddressBlocked
+          ? ` (${newlyBlocked + newlyAddressBlocked} newly blocked by current Shopify verification)`
           : ""
       }`
     : "All selected orders imported successfully";

@@ -140,32 +140,24 @@ describe("Shopify order creation", () => {
     expect(input).not.toHaveProperty("fulfillmentStatus");
   });
 
-  it("creates an order without a shipping address or last name", async () => {
-    const graphql = vi.fn().mockResolvedValue({
-      json: async () => ({
-        data: {
-          orderCreate: {
-            order: { id: "gid://shopify/Order/3", name: "#1003" },
-            userErrors: [],
+  it("refuses to create an order without a usable saved customer address", async () => {
+    const graphql = vi.fn();
+
+    await expect(
+      createHistoricalOrder({ graphql } as never, {
+        currency: "INR",
+        tags: [],
+        lineItems: [
+          {
+            variantId: "gid://shopify/ProductVariant/100",
+            quantity: 1,
+            unitPrice: 649,
           },
-        },
+        ],
       }),
-    });
+    ).rejects.toThrow("saved Shopify customer shipping address is required");
 
-    await createHistoricalOrder({ graphql } as never, {
-      currency: "INR",
-      tags: [],
-      lineItems: [
-        {
-          variantId: "gid://shopify/ProductVariant/100",
-          quantity: 1,
-          unitPrice: 649,
-        },
-      ],
-    });
-
-    const input = graphql.mock.calls[0][1].variables.order;
-    expect(input.shippingAddress).toBeUndefined();
+    expect(graphql).not.toHaveBeenCalled();
   });
 
   it("refuses an unknown fulfillment status before GraphQL", async () => {
@@ -317,6 +309,50 @@ describe("Shopify order creation", () => {
       variables: {
         identifier0: { emailAddress: "buyer@example.com" },
       },
+    });
+  });
+
+  it("falls back to the first saved customer address without requiring last name", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          customer0: {
+            displayName: "Aromal",
+            defaultEmailAddress: { emailAddress: "buyer@example.com" },
+            defaultAddress: null,
+            addressesV2: {
+              nodes: [
+                {
+                  firstName: "Aromal",
+                  lastName: null,
+                  address1: "Pavithram",
+                  city: "Kozhikode",
+                  provinceCode: "KL",
+                  zip: "673016",
+                  countryCodeV2: "IN",
+                },
+              ],
+            },
+          },
+        },
+      }),
+    });
+
+    const profiles = await findCustomerProfilesByEmail({ graphql } as never, [
+      "buyer@example.com",
+    ]);
+
+    expect(profiles.get("buyer@example.com")?.defaultShippingAddress).toEqual({
+      firstName: "Aromal",
+      lastName: undefined,
+      company: undefined,
+      address1: "Pavithram",
+      address2: undefined,
+      city: "Kozhikode",
+      provinceCode: "KL",
+      zip: "673016",
+      countryCode: "IN",
+      phone: undefined,
     });
   });
 

@@ -9,7 +9,7 @@ import {
 } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
-  clearLegacyCustomerShippingAddressIssues,
+  applyCustomerShippingAddressValidation,
   clearEphemeralJob,
   getSelectedReadyOrders,
   getCachedCustomerProfiles,
@@ -34,7 +34,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     admin,
     job.pending.map((order) => order.customerEmail),
   );
-  clearLegacyCustomerShippingAddressIssues(job.pending);
+  applyCustomerShippingAddressValidation(job.pending, customerProfiles);
   return {
     job: {
       id: job.id,
@@ -151,7 +151,12 @@ export async function action({ request }: ActionFunctionArgs) {
   const selectedOrders = job.pending.filter((order) =>
     selectedOrderKeySet.has(order.deterministicKey),
   );
-  clearLegacyCustomerShippingAddressIssues(selectedOrders);
+  const customerProfiles = await getCachedCustomerProfiles(
+    job,
+    admin,
+    selectedOrders.map((order) => order.customerEmail),
+  );
+  applyCustomerShippingAddressValidation(selectedOrders, customerProfiles);
   const selectedReadyOrders = getSelectedReadyOrders(job, selectedOrderKeys);
   if (!selectedReadyOrders.length) {
     return Response.json(
