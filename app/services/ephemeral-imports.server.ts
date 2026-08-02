@@ -346,6 +346,7 @@ export async function importReadyOrders(
         : null;
       await createHistoricalOrder(admin, {
         ...order,
+        name: order.sourceOrderName ?? order.sourceOrderId,
         shippingAddress: customerProfile?.defaultShippingAddress,
         shippingCharge: order.shippingCharge,
         lineItems: order.lineItems.map((line) => ({

@@ -14,6 +14,7 @@ const ORDER_CREATE = `#graphql
 `;
 
 export type ImportableOrder = {
+  name?: string | null;
   customerEmail?: string | null;
   shippingAddress?: ShopifyMailingAddressInput | null;
   currency: string;
@@ -332,6 +333,7 @@ export async function createHistoricalOrder(
   const response = await admin.graphql(ORDER_CREATE, {
     variables: {
       order: {
+        name: order.name?.trim() || undefined,
         customer: order.customerEmail
           ? { toUpsert: { email: order.customerEmail } }
           : undefined,

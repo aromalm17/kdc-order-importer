@@ -483,6 +483,7 @@ describe("Selective pending-order import", () => {
       name: "#1001",
     });
     const order = parsedOrder("ready-with-excel-price");
+    order.sourceOrderName = "#2660";
     order.lineItems = [
       {
         sourceRowNumber: 2,
@@ -514,6 +515,7 @@ describe("Selective pending-order import", () => {
     expect(createHistoricalOrder).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
+        name: "#2660",
         lineItems: [
           {
             title: "Car",

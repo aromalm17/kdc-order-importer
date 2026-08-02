@@ -19,6 +19,7 @@ describe("Shopify order creation", () => {
       }),
     });
     const result = await createHistoricalOrder({ graphql } as never, {
+      name: "#2660",
       customerEmail: "buyer@example.com",
       shippingAddress: {
         firstName: "Aromal",
@@ -51,6 +52,7 @@ describe("Shopify order creation", () => {
         variables: expect.objectContaining({
           options: { sendReceipt: false, sendFulfillmentReceipt: false },
           order: expect.objectContaining({
+            name: "#2660",
             fulfillmentStatus: "FULFILLED",
             shippingLines: [
               {
