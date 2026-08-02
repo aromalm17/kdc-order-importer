@@ -14,7 +14,7 @@ import {
 } from "../lib/fulfillment-status";
 import { detectMapping, KDC_MAPPING } from "./mapping.server";
 import {
-  assertWorkbookResourceLimits,
+  createWorkbookParsingBuffer,
   MAX_WORKBOOK_ROWS,
   WorkbookResourceLimitError,
 } from "./workbook-limits.server";
@@ -206,9 +206,9 @@ export async function parseWorkbook(
   buffer: Buffer,
   options?: { sheetName?: string; mapping?: ColumnMapping },
 ): Promise<WorkbookParseResult> {
-  await assertWorkbookResourceLimits(buffer);
-  const sheetNames = await readSheetNames(buffer);
-  const rows = await readXlsxFile(buffer, {
+  const parsingBuffer = await createWorkbookParsingBuffer(buffer);
+  const sheetNames = await readSheetNames(parsingBuffer);
+  const rows = await readXlsxFile(parsingBuffer, {
     ...(options?.sheetName ? { sheet: options.sheetName } : {}),
   });
   if (!rows.length) throw new Error("The workbook has no readable rows.");
