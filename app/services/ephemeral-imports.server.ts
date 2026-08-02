@@ -30,8 +30,22 @@ const TTL_MS = 24 * 60 * 60 * 1000;
 function cleanup() {
   const cutoff = Date.now() - TTL_MS;
   for (const [id, job] of jobs) {
-    if (job.updatedAt.getTime() < cutoff) jobs.delete(id);
+    if (job.updatedAt.getTime() < cutoff) {
+      jobs.delete(id);
+      if (latestByShop.get(job.shop) === id) latestByShop.delete(job.shop);
+    }
   }
+}
+
+export function clearEphemeralJobsForShop(shop: string) {
+  let cleared = 0;
+  for (const [id, job] of jobs) {
+    if (job.shop !== shop) continue;
+    jobs.delete(id);
+    cleared += 1;
+  }
+  latestByShop.delete(shop);
+  return cleared;
 }
 
 export function createEphemeralJob(
@@ -40,6 +54,9 @@ export function createEphemeralJob(
   result: WorkbookParseResult,
 ) {
   cleanup();
+  // The UI exposes one current import per shop. Discard superseded jobs so
+  // inaccessible workbook data cannot accumulate for the full 24-hour TTL.
+  clearEphemeralJobsForShop(shop);
   const id = crypto.randomUUID();
   const job: EphemeralJob = {
     id,

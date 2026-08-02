@@ -9,6 +9,7 @@ import { verifyOrderVariantImages } from "../app/services/variant-verification.s
 import {
   applyCustomerShippingAddressValidation,
   clearEphemeralJob,
+  clearEphemeralJobsForShop,
   createEphemeralJob,
   getCachedCustomerProfiles,
   getEphemeralJob,
@@ -300,6 +301,31 @@ describe("Selective pending-order import", () => {
     expect(getEphemeralJob(shop, job.id)).toBeUndefined();
     expect(getEphemeralJob(shop)).toBeUndefined();
     expect(clearEphemeralJob(shop, job.id)).toBe(false);
+  });
+
+  it("keeps only one active in-memory import per shop", () => {
+    const shop = "single-job.example.myshopify.com";
+    const first = createEphemeralJob(shop, "first.xlsx", {
+      sheetNames: ["Orders"],
+      selectedSheet: "Orders",
+      headers: [],
+      totalRows: 1,
+      mapping: {},
+      orders: [parsedOrder("first")],
+    });
+    const second = createEphemeralJob(shop, "second.xlsx", {
+      sheetNames: ["Orders"],
+      selectedSheet: "Orders",
+      headers: [],
+      totalRows: 1,
+      mapping: {},
+      orders: [parsedOrder("second")],
+    });
+
+    expect(getEphemeralJob(shop, first.id)).toBeUndefined();
+    expect(getEphemeralJob(shop)).toBe(second);
+    expect(clearEphemeralJobsForShop(shop)).toBe(1);
+    expect(clearEphemeralJobsForShop(shop)).toBe(0);
   });
 
   it("marks pasted pending order numbers Unfulfilled in bulk", () => {
