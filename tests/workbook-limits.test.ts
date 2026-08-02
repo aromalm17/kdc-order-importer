@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import {
   assertWorkbookResourceLimits,
   MAX_WORKBOOK_BYTES,
+  WorkbookResourceLimitError,
   workbookSizeError,
 } from "../app/services/workbook-limits.server";
 
@@ -20,6 +21,9 @@ describe("workbook resource limits", () => {
 
     await expect(assertWorkbookResourceLimits(buffer)).rejects.toThrow(
       "safe limit",
+    );
+    await expect(assertWorkbookResourceLimits(buffer)).rejects.toBeInstanceOf(
+      WorkbookResourceLimitError,
     );
     expect(workbookSizeError(buffer.byteLength)).toContain("Split it");
   });

@@ -8,6 +8,7 @@ import { parseWorkbook } from "./workbook.server";
 import {
   assertWorkbookResourceLimits,
   MAX_WORKBOOK_BYTES,
+  WorkbookResourceLimitError,
   workbookSizeError,
 } from "./workbook-limits.server";
 import { verifyOrderVariantImages } from "./variant-verification.server";
@@ -63,7 +64,7 @@ export async function handleNewImport(request: Request) {
         error:
           error instanceof Error ? error.message : "Workbook parsing failed.",
       },
-      { status: 400 },
+      { status: error instanceof WorkbookResourceLimitError ? 413 : 400 },
     );
   }
 }

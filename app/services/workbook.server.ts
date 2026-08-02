@@ -16,6 +16,7 @@ import { detectMapping, KDC_MAPPING } from "./mapping.server";
 import {
   assertWorkbookResourceLimits,
   MAX_WORKBOOK_ROWS,
+  WorkbookResourceLimitError,
 } from "./workbook-limits.server";
 
 const quantitySchema = z.coerce.number().int().positive();
@@ -212,7 +213,7 @@ export async function parseWorkbook(
   });
   if (!rows.length) throw new Error("The workbook has no readable rows.");
   if (rows.length - 1 > MAX_WORKBOOK_ROWS) {
-    throw new Error(
+    throw new WorkbookResourceLimitError(
       `The selected sheet contains more than ${MAX_WORKBOOK_ROWS.toLocaleString("en-IN")} data rows. Split it into smaller workbooks before importing.`,
     );
   }
