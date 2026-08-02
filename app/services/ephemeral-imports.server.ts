@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
-import ExcelJS from "exceljs";
 import type { ParsedOrder, WorkbookParseResult } from "../lib/import-types";
 import { hasBlockingIssues } from "./workbook.server";
 import {
@@ -412,6 +411,7 @@ export function pendingCsv(job: EphemeralJob) {
 }
 
 export async function pendingWorkbook(job: EphemeralJob) {
+  const { default: ExcelJS } = await import("exceljs");
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "KDC Order Import";
   workbook.created = new Date();

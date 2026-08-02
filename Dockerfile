@@ -6,6 +6,7 @@ EXPOSE 3000
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NODE_OPTIONS=--max-old-space-size=384
 
 COPY package.json package-lock.json* ./
 
@@ -15,4 +16,4 @@ COPY . .
 
 RUN npm run build
 
-CMD ["npm", "run", "docker-start"]
+CMD ["node", "node_modules/@react-router/serve/bin.js", "./build/server/index.js"]

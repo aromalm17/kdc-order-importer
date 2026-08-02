@@ -3,7 +3,7 @@ services:
     name: kdc-order-importer-web
     runtime: docker
     plan: free
-    healthCheckPath: /auth/login
+    healthCheckPath: /healthz
     envVars:
       - key: SHOPIFY_API_VERSION
         value: 2026-07
@@ -17,3 +17,5 @@ services:
         sync: false
       - key: SHOP_CUSTOM_DOMAIN
         value: keraladiecastcars.myshopify.com
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
