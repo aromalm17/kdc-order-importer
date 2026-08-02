@@ -2,7 +2,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
-  applyCustomerShippingAddressValidation,
+  clearLegacyCustomerShippingAddressIssues,
   getCachedCustomerProfiles,
   getEphemeralJob,
 } from "../services/ephemeral-imports.server";
@@ -32,7 +32,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const customerProfiles = await getCachedCustomerProfiles(job, admin, [
     order.customerEmail,
   ]);
-  applyCustomerShippingAddressValidation([order], customerProfiles);
+  clearLegacyCustomerShippingAddressIssues([order]);
   const customer = customerProfiles.get(
     order.customerEmail?.trim().toLowerCase() ?? "",
   );

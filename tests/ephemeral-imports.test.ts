@@ -7,7 +7,7 @@ import {
 } from "../app/services/shopify-orders.server";
 import { verifyOrderVariantImages } from "../app/services/variant-verification.server";
 import {
-  applyCustomerShippingAddressValidation,
+  clearLegacyCustomerShippingAddressIssues,
   clearEphemeralJob,
   clearEphemeralJobsForShop,
   createEphemeralJob,
@@ -241,47 +241,25 @@ describe("Selective pending-order import", () => {
     expect(getSelectedReadyOrders(job, [])).toEqual([]);
   });
 
-  it("blocks orders when the Shopify customer has no default shipping address", () => {
+  it("does not block orders when the Shopify customer has no default shipping address", () => {
     const missingAddress = parsedOrder("missing-address");
     const missingCustomer = parsedOrder("missing-customer");
     missingCustomer.customerEmail = "unknown@example.com";
     const lookupFailed = parsedOrder("lookup-failed");
     lookupFailed.customerEmail = "retry@example.com";
 
-    applyCustomerShippingAddressValidation(
-      [missingAddress, missingCustomer, lookupFailed],
-      new Map([
-        [
-          "buyer@example.com",
-          {
-            email: "buyer@example.com",
-          },
-        ],
-        ["unknown@example.com", null],
-      ]),
-    );
+    clearLegacyCustomerShippingAddressIssues([
+      missingAddress,
+      missingCustomer,
+      lookupFailed,
+    ]);
 
-    expect(missingAddress.issues).toContainEqual(
-      expect.objectContaining({
-        code: "MISSING_CUSTOMER_DEFAULT_SHIPPING_ADDRESS",
-        severity: "error",
-      }),
-    );
-    expect(missingCustomer.issues).toContainEqual(
-      expect.objectContaining({
-        code: "SHOPIFY_CUSTOMER_NOT_FOUND",
-        severity: "error",
-      }),
-    );
-    expect(lookupFailed.issues).toContainEqual(
-      expect.objectContaining({
-        code: "CUSTOMER_SHIPPING_ADDRESS_LOOKUP_FAILED",
-        severity: "error",
-      }),
-    );
-    expect(hasBlockingIssues(missingAddress)).toBe(true);
-    expect(hasBlockingIssues(missingCustomer)).toBe(true);
-    expect(hasBlockingIssues(lookupFailed)).toBe(true);
+    expect(missingAddress.issues).toEqual([]);
+    expect(missingCustomer.issues).toEqual([]);
+    expect(lookupFailed.issues).toEqual([]);
+    expect(hasBlockingIssues(missingAddress)).toBe(false);
+    expect(hasBlockingIssues(missingCustomer)).toBe(false);
+    expect(hasBlockingIssues(lookupFailed)).toBe(false);
   });
 
   it("clears the current temporary import and latest-shop reference", () => {
@@ -630,7 +608,11 @@ describe("Selective pending-order import", () => {
     expect(job.status).toBe("COMPLETED");
   });
 
-  it("does not import when the matched customer has no default shipping address", async () => {
+  it("imports when the matched customer has no default shipping address", async () => {
+    vi.mocked(createHistoricalOrder).mockResolvedValue({
+      id: "gid://shopify/Order/1",
+      name: "#1001",
+    });
     const order = parsedOrder("missing-default-address");
     vi.mocked(findCustomerProfilesByEmail).mockResolvedValue(
       new Map([
@@ -658,14 +640,13 @@ describe("Selective pending-order import", () => {
 
     await importReadyOrders(job, {} as never, [order.deterministicKey]);
 
-    expect(createHistoricalOrder).not.toHaveBeenCalled();
-    expect(order.issues).toContainEqual(
-      expect.objectContaining({
-        code: "MISSING_CUSTOMER_DEFAULT_SHIPPING_ADDRESS",
-      }),
+    expect(createHistoricalOrder).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ shippingAddress: undefined }),
     );
-    expect(job.pending).toEqual([order]);
-    expect(job.status).toBe("PENDING");
+    expect(order.issues).toEqual([]);
+    expect(job.pending).toEqual([]);
+    expect(job.status).toBe("COMPLETED");
   });
 
   it("never imports a selected blocked order", async () => {

@@ -140,24 +140,32 @@ describe("Shopify order creation", () => {
     expect(input).not.toHaveProperty("fulfillmentStatus");
   });
 
-  it("refuses to create an order without a customer default shipping address", async () => {
-    const graphql = vi.fn();
-
-    await expect(
-      createHistoricalOrder({ graphql } as never, {
-        currency: "INR",
-        tags: [],
-        lineItems: [
-          {
-            variantId: "gid://shopify/ProductVariant/100",
-            quantity: 1,
-            unitPrice: 649,
+  it("creates an order without a shipping address or last name", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          orderCreate: {
+            order: { id: "gid://shopify/Order/3", name: "#1003" },
+            userErrors: [],
           },
-        ],
+        },
       }),
-    ).rejects.toThrow("customer default shipping address is required");
+    });
 
-    expect(graphql).not.toHaveBeenCalled();
+    await createHistoricalOrder({ graphql } as never, {
+      currency: "INR",
+      tags: [],
+      lineItems: [
+        {
+          variantId: "gid://shopify/ProductVariant/100",
+          quantity: 1,
+          unitPrice: 649,
+        },
+      ],
+    });
+
+    const input = graphql.mock.calls[0][1].variables.order;
+    expect(input.shippingAddress).toBeUndefined();
   });
 
   it("refuses an unknown fulfillment status before GraphQL", async () => {
