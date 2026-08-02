@@ -13,12 +13,21 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   const job = getEphemeralJob(session.shop, url.searchParams.get("job"));
   const orderKey = url.searchParams.get("order");
+  const orderIndex =
+    job?.pending.findIndex(
+      (candidate) => candidate.deterministicKey === orderKey,
+    ) ?? -1;
   const order = job?.pending.find(
     (candidate) => candidate.deterministicKey === orderKey,
   );
 
   if (!job || !order) {
-    return { jobId: job?.id ?? null, order: null };
+    return {
+      jobId: job?.id ?? null,
+      order: null,
+      previousOrderKey: null,
+      nextOrderKey: null,
+    };
   }
   const customerProfiles = await getCachedCustomerProfiles(job, admin, [
     order.customerEmail,
@@ -31,6 +40,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   return {
     jobId: job.id,
+    previousOrderKey:
+      orderIndex > 0 ? job.pending[orderIndex - 1].deterministicKey : null,
+    nextOrderKey:
+      orderIndex < job.pending.length - 1
+        ? job.pending[orderIndex + 1].deterministicKey
+        : null,
     order: {
       source: order.sourceOrderName ?? order.sourceOrderId,
       customerName: order.customerName ?? customer?.displayName ?? "—",
@@ -81,6 +96,8 @@ export default function PendingOrderDetail() {
   const backHref = data.jobId
     ? `/app/preview?job=${encodeURIComponent(data.jobId)}`
     : "/app/preview";
+  const orderHref = (orderKey: string) =>
+    `/app/preview/order?job=${encodeURIComponent(data.jobId ?? "")}&order=${encodeURIComponent(orderKey)}`;
 
   if (!data.order) {
     return (
@@ -108,6 +125,26 @@ export default function PendingOrderDetail() {
       <s-button slot="secondary-actions" onClick={() => navigate(backHref)}>
         Back to pending orders
       </s-button>
+      <s-button
+        slot="secondary-actions"
+        icon="chevron-left"
+        accessibilityLabel="Previous order"
+        disabled={!data.previousOrderKey}
+        onClick={() => {
+          if (data.previousOrderKey) {
+            navigate(orderHref(data.previousOrderKey));
+          }
+        }}
+      />
+      <s-button
+        slot="secondary-actions"
+        icon="chevron-right"
+        accessibilityLabel="Next order"
+        disabled={!data.nextOrderKey}
+        onClick={() => {
+          if (data.nextOrderKey) navigate(orderHref(data.nextOrderKey));
+        }}
+      />
 
       <s-section heading="Order verification">
         <s-banner tone={data.order.blocked ? "critical" : "success"}>
