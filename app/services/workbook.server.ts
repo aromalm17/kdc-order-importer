@@ -185,6 +185,8 @@ function composedAddress(
     firstAliasedValue(rows, [
       `${prefix}: Province`,
       `${prefix} Province`,
+      `${prefix}: State`,
+      `${prefix} State`,
       `${prefix}: Province Code`,
     ]),
     firstAliasedValue(rows, [

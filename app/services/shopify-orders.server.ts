@@ -39,6 +39,7 @@ export type ShopifyMailingAddressInput = {
   address1?: string;
   address2?: string;
   city?: string;
+  province?: string;
   provinceCode?: string;
   zip?: string;
   countryCode?: string;
@@ -108,6 +109,7 @@ function structuredMailingAddress(
     address1: address.address1?.trim() || undefined,
     address2: address.address2?.trim() || undefined,
     city: address.city?.trim() || undefined,
+    province: address.province?.trim() || undefined,
     provinceCode: address.provinceCode?.trim() || undefined,
     zip: address.zip?.trim() || undefined,
     countryCode: address.countryCodeV2?.trim() || undefined,

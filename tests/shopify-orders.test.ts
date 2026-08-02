@@ -298,6 +298,7 @@ describe("Shopify order creation", () => {
         address1: "Pavithram",
         address2: "Kaloliparamba",
         city: "Kozhikode",
+        province: "Kerala",
         provinceCode: "KL",
         zip: "673016",
         countryCode: "IN",
@@ -349,7 +350,53 @@ describe("Shopify order creation", () => {
       address1: "Pavithram",
       address2: undefined,
       city: "Kozhikode",
+      province: undefined,
       provinceCode: "KL",
+      zip: "673016",
+      countryCode: "IN",
+      phone: undefined,
+    });
+  });
+
+  it("preserves a saved state or province when the code is missing", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          customer0: {
+            displayName: "Aromal",
+            defaultEmailAddress: { emailAddress: "buyer@example.com" },
+            defaultAddress: null,
+            addressesV2: {
+              nodes: [
+                {
+                  firstName: "Aromal",
+                  lastName: null,
+                  address1: "Pavithram",
+                  city: "Kozhikode",
+                  province: "Kerala",
+                  zip: "673016",
+                  countryCodeV2: "IN",
+                },
+              ],
+            },
+          },
+        },
+      }),
+    });
+
+    const profiles = await findCustomerProfilesByEmail({ graphql } as never, [
+      "buyer@example.com",
+    ]);
+
+    expect(profiles.get("buyer@example.com")?.defaultShippingAddress).toEqual({
+      firstName: "Aromal",
+      lastName: undefined,
+      company: undefined,
+      address1: "Pavithram",
+      address2: undefined,
+      city: "Kozhikode",
+      province: "Kerala",
+      provinceCode: undefined,
       zip: "673016",
       countryCode: "IN",
       phone: undefined,
