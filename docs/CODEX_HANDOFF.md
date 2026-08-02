@@ -1,6 +1,212 @@
 # Codex handoff: KDC Order Importer
 
-Last refreshed: 2026-07-30
+Last refreshed: 2026-08-03
+
+## Saved customer address fallback and restriction (2026-08-03)
+
+Historical imports now fetch the Shopify customer by workbook email, prefer
+the customer's `defaultAddress`, and fall back to the first address returned
+by `addressesV2` when no default is set. The selected structured address is
+sent as `orderCreate.shippingAddress`, and the matched Shopify customer ID is
+used with `orderCreate.customer.toAssociate` when available. `lastName`
+remains optional, but a usable saved address with `address1` is mandatory. A
+missing customer, failed lookup, or missing usable saved address blocks the
+order before `orderCreate`; the final creation service repeats the address
+check.
+
+- Local source commit: `1dbc734`
+- Deployment snapshot commit: `2b8cdef24dd22eb637511175817b8161600abdea`
+- Render deploy: `dep-d9nrfrdaeets73cib020` (live)
+- Validation: 87 tests, typecheck, lint, production build, and
+  `git diff --check` passed.
+- Production verification: `/healthz` returned HTTP 200 with
+  `{"status":"ok"}`.
+- The deployment restart cleared the temporary in-memory workbook/job. Upload
+  the workbook again before importing.
+
+## Excel order-name preservation (2026-08-03)
+
+Future imports now pass the workbook's mapped `Name` value directly to
+`OrderCreateOrderInput.name`. A source `Name` such as `#2660` therefore appears
+as `#2660` in the Shopify Orders list instead of receiving a generated name
+such as `#1012`. The `#` and source number are preserved; surrounding
+whitespace is trimmed. This controls the merchant-visible order name, not
+Shopify's immutable internal GraphQL order GID. Existing imported orders are
+not renamed retroactively.
+
+- Local source commit: `8e2d3ad`
+- Deployment snapshot commit: `66c2367a59060c080fd17023874fb8b1c8f6d5b0`
+- Render deploy: `dep-d9nr4pu7bikc73cg7h3g` (live)
+- Validation: 86 tests, typecheck, lint, production build, and
+  `git diff --check` passed.
+- Production verification: `/healthz` returned HTTP 200 with
+  `{"status":"ok"}`.
+- The deployment restart cleared the temporary in-memory workbook/job. Upload
+  the workbook again before importing.
+
+## Unfulfilled `orderCreate` fix (2026-08-03)
+
+Shopify Admin GraphQL `OrderCreateFulfillmentStatus` does not include
+`UNFULFILLED`; its accepted explicit values are `FULFILLED`, `PARTIAL`, and
+`RESTOCKED`. `OrderCreateOrderInput.fulfillmentStatus` defaults to unfulfilled
+when omitted. The importer now sends `FULFILLED` only for completed orders and
+omits the field for orders marked Unfulfilled. Unknown statuses remain blocked.
+
+- Local source commit: `44d2f48`
+- Deployment snapshot commit: `cb82c1e3cb32201ff5a4ac6c16dbd467495a904b`
+- Render deploy: `dep-d9nqvhrm8hqs73euf1l0` (live)
+- Validation: 86 tests, typecheck, lint, production build, and
+  `git diff --check` passed.
+- Production verification: `/healthz` returned HTTP 200 with
+  `{"status":"ok"}`.
+- The deployment restart cleared the temporary in-memory workbook/job. The
+  merchant must upload it again before retrying the affected orders.
+
+## Excel order-line titles (2026-08-02)
+
+Future historical imports now pass the workbook's mapped `Line: Title` value
+as `OrderCreateLineItemInput.title`. The verified Shopify Variant GID is still
+sent on the same line, preserving the variant association, while the workbook
+continues to control quantity and unit price. Existing Shopify orders are not
+renamed retroactively.
+
+- Local source commit: `31e8961`
+- Deployment snapshot commit: `66447fabedfbdc350129b1b596ed4e86a84dc1e8`
+- Render deploy: `dep-d9noio7qj5pc73fbc4dg`
+- Validation: 86 tests, typecheck, lint, production build, and
+  `git diff --check` passed.
+- Production verification: `/healthz` returned HTTP 200 with
+  `{"status":"ok"}`.
+- The deployment restart cleared temporary in-memory workbook/job data.
+
+Follow-up: variant/image verification previously replaced `productTitle` with
+the Shopify catalog title before `orderCreate`. That assignment was removed so
+the parsed workbook title survives the complete verification and import path.
+
+- Follow-up source commit: `e460a94`
+- Follow-up deployment commit: `6ed627df88417ea37d6c01309608778f6731c4e5`
+- Follow-up Render deploy: `dep-d9nond5aeets73cdefc0` (live)
+- Validation remained 86 passing tests plus typecheck, lint, production build,
+  and `git diff --check`; `/healthz` returned HTTP 200 after deployment.
+
+## Bulk preorder editor by exact variant (2026-08-02)
+
+The embedded app now has a `Bulk Preorders` menu for updating the same
+order-level preorder message across multiple Shopify orders that contain an
+exact product variant.
+
+- `/app/preorders` scans Shopify orders and groups matching lines by exact
+  Shopify Variant GID, so differently colored or configured variants remain
+  separate even when their product title is shared.
+- The group list can be filtered by product ID, variant ID, SKU, or title. It
+  is sorted by matching order count descending, then latest order date.
+- `/app/preorders/variant?id=...` shows all scanned orders for one exact
+  variant newest-first. All are initially selected; the merchant can deselect
+  individual orders before applying one Arrival ETA and Pending price.
+- Submitting updates only the existing order metafields
+  `custom.preorder_eta` and `custom.preorder_pending_price`. It never changes
+  the product, variant, image, quantity, or product price.
+- Clearing both editor values removes both preorder metafields from the
+  selected orders.
+- The action intersects submitted order IDs with the selected variant's
+  server-side order set before writing, preventing arbitrary order updates.
+- The product index is cached per shop for five minutes. `Refresh products`
+  bypasses and replaces that cache.
+- The current bounded scan covers the latest 1,000 orders and up to 25 current
+  line items per order. If the store grows beyond this, replace the request
+  pagination with a Shopify bulk operation rather than raising limits on the
+  Render free instance.
+
+Validation: 86 tests, typecheck, lint, production build, and `git diff --check`
+passed. GraphQL code generation could not complete because the remote schema
+loader stalled; the deployed query/mutation fields reuse the already supported
+Admin GraphQL order and metafield shapes.
+
+- Local source commit: `bfe5a13`
+- Deployment snapshot commit: `4cbedc5a719a59b487aa2b5fb100f616eec7b25c`
+- Render deploy: `dep-d9nobklaeets73ccof50`
+- Render status: live on 2026-08-02
+- Production health verification: `/healthz` returned HTTP 200 with
+  `{"status":"ok"}`.
+- The deployment restart cleared temporary in-memory workbook/job data. It
+  did not edit Shopify orders; order metafields change only after a merchant
+  submits the bulk editor.
+
+## Workbook memory-bound fix (2026-08-02)
+
+The service still reached the 384 MB JavaScript heap ceiling after an
+authenticated import request. The recurring `/healthz` requests were healthy;
+the remaining risk was the workbook path: the app allowed a 25 MB compressed
+XLSX, expanded the complete archive in memory, and retained superseded import
+jobs for the full 24-hour TTL even though only the latest job was accessible.
+
+The deployed fix:
+
+- Allows only one active in-memory import job per shop and removes superseded
+  jobs before expanding a replacement workbook.
+- Cleans stale `latestByShop` references when TTL cleanup removes a job.
+- Rejects request bodies and compressed XLSX files above 8 MB before parsing.
+- Reads XLSX ZIP central-directory metadata and rejects archives with more than
+  500 entries, more than 256 MB total expanded archive content, or more than
+  32 MB of parseable order/XML content. Embedded media, workbook objects, and
+  printer data are stripped from a temporary parsing copy before the Excel
+  reader runs.
+- Rejects a selected sheet above 10,000 data rows with a clear instruction to
+  split the workbook.
+- Returns HTTP 413/resource-limit messages rather than letting unsafe uploads
+  exhaust the Render free instance.
+- Updates the Shopify React Router dependency declaration to the already
+  installed current `1.2.1` release and adds the explicit archive-inspection
+  dependency/types.
+
+Validation: 84 tests, typecheck, lint, production build, changed-file Prettier
+checks, and `git diff --check` passed.
+
+- Local source commit: `f999e47`
+- Deployment snapshot commit: `130e347c3114572ae6e23feaedce85f31a6a2c16`
+- Render deploy: `dep-d9nlqsrm8hqs73ekukt0`
+- Render status: live on 2026-08-02
+- Media-safe follow-up source commit: `8e74378`
+- Media-safe deployment commit: `a67083966af1abe551235f1311eed650f7c73170`
+- Current Render deploy: `dep-d9nm7961egvs738ccfdg` (live)
+- Post-deploy verification: `/healthz` returned HTTP 200 with `no-store`; logs
+  stayed at roughly 1–2 ms for more than two minutes past the prior crash
+  window, with no OOM or process restart.
+- The deployment restart cleared all previous temporary in-memory jobs and
+  workbook data as explicitly requested.
+
+Operational consequence: a new valid workbook replaces the shop's existing
+pending import. Download the pending workbook first if it must be retained.
+Files above any safe limit must be split into smaller `.xlsx` workbooks.
+
+## Production reliability fix (2026-08-02)
+
+The production service was reported crashing with `JavaScript heap out of
+memory` after repeated `/auth/login` requests and offline-token exchanges.
+The fix is committed locally as `b428612`, pushed to the deployment repository
+as snapshot commit `da065fb`, and deployed live on Render.
+
+The deployed fix:
+
+- Adds an unauthenticated, no-store `/healthz` endpoint and changes
+  `render.yaml` away from the authentication-heavy `/auth/login` health check.
+- Starts React Router directly with Node instead of two nested npm processes.
+- Sets the container's Node old-space ceiling to 384 MB on Render's 512 MB free
+  instance.
+- Loads ExcelJS only when generating a pending workbook export instead of at
+  server startup.
+- Adds a health endpoint regression test.
+
+Validation completed before the push: 79 tests, typecheck, lint, production
+build, supported-file Prettier checks, `git diff --check`, direct production
+startup command, and local `/healthz` HTTP 200 verification.
+
+- Final Render deploy: `dep-d9nl3mm417fc73djui60`
+- Render service health-check path: `/healthz`
+- Production verification: `/healthz`, `/auth/login`, and `/` returned HTTP
+  200. Post-deploy logs show the recurring health probe using `/healthz`
+  instead of `/auth/login`, with responses around 1–3 ms.
+- The deployment cleared temporary in-memory workbook/job data as expected.
 
 ## Project identity
 

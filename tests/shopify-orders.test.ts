@@ -20,6 +20,7 @@ describe("Shopify order creation", () => {
     });
     const result = await createHistoricalOrder({ graphql } as never, {
       name: "#2660",
+      customerId: "gid://shopify/Customer/1",
       customerEmail: "buyer@example.com",
       shippingAddress: {
         firstName: "Aromal",
@@ -51,9 +52,14 @@ describe("Shopify order creation", () => {
       expect.objectContaining({
         variables: expect.objectContaining({
           options: { sendReceipt: false, sendFulfillmentReceipt: false },
-          order: expect.objectContaining({
-            name: "#2660",
-            fulfillmentStatus: "FULFILLED",
+            order: expect.objectContaining({
+              customer: {
+                toAssociate: {
+                  id: "gid://shopify/Customer/1",
+                },
+              },
+              name: "#2660",
+              fulfillmentStatus: "FULFILLED",
             shippingLines: [
               {
                 title: "Shipping",
@@ -257,6 +263,7 @@ describe("Shopify order creation", () => {
       json: async () => ({
         data: {
           customer0: {
+            id: "gid://shopify/Customer/1",
             displayName: "Aromal M",
             defaultEmailAddress: { emailAddress: "buyer@example.com" },
             defaultPhoneNumber: { phoneNumber: "+919645260931" },
@@ -286,6 +293,7 @@ describe("Shopify order creation", () => {
     ]);
 
     expect(profiles.get("buyer@example.com")).toEqual({
+      id: "gid://shopify/Customer/1",
       displayName: "Aromal M",
       email: "buyer@example.com",
       phone: "+919645260931",
@@ -318,6 +326,7 @@ describe("Shopify order creation", () => {
       json: async () => ({
         data: {
           customer0: {
+            id: "gid://shopify/Customer/1",
             displayName: "Aromal",
             defaultEmailAddress: { emailAddress: "buyer@example.com" },
             defaultAddress: null,
@@ -363,6 +372,7 @@ describe("Shopify order creation", () => {
       json: async () => ({
         data: {
           customer0: {
+            id: "gid://shopify/Customer/1",
             displayName: "Aromal",
             defaultEmailAddress: { emailAddress: "buyer@example.com" },
             defaultAddress: null,

@@ -60,6 +60,7 @@ describe("Selective pending-order import", () => {
         [
           "buyer@example.com",
           {
+            id: "gid://shopify/Customer/1",
             email: "buyer@example.com",
             defaultAddress: "Pavithram, Kozhikode, Kerala, 673016, India",
             defaultShippingAddress: {
@@ -166,12 +167,13 @@ describe("Selective pending-order import", () => {
       )
       .mockResolvedValueOnce(
         new Map([
-          [
-            "buyer@example.com",
-            {
-              email: "buyer@example.com",
-              defaultShippingAddress: {
-                address1: "Pavithram",
+        [
+          "buyer@example.com",
+          {
+            id: "gid://shopify/Customer/1",
+            email: "buyer@example.com",
+            defaultShippingAddress: {
+              address1: "Pavithram",
                 city: "Kozhikode",
                 countryCode: "IN",
               },
@@ -568,6 +570,7 @@ describe("Selective pending-order import", () => {
         [
           "buyer@example.com",
           {
+            id: "gid://shopify/Customer/1",
             displayName: "Aromal M",
             email: "buyer@example.com",
             defaultAddress: "Pavithram, Kozhikode, Kerala, 673016, India",
@@ -600,6 +603,7 @@ describe("Selective pending-order import", () => {
       expect.anything(),
       expect.objectContaining({
         customerEmail: " Buyer@Example.com ",
+        customerId: "gid://shopify/Customer/1",
         shippingAddress: defaultShippingAddress,
       }),
     );

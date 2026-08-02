@@ -15,6 +15,7 @@ const ORDER_CREATE = `#graphql
 
 export type ImportableOrder = {
   name?: string | null;
+  customerId?: string | null;
   customerEmail?: string | null;
   shippingAddress?: ShopifyMailingAddressInput | null;
   currency: string;
@@ -47,6 +48,7 @@ export type ShopifyMailingAddressInput = {
 };
 
 export type CustomerVerificationProfile = {
+  id?: string;
   displayName?: string;
   email?: string;
   phone?: string;
@@ -71,6 +73,7 @@ type CustomerDefaultAddress = {
 };
 
 type CustomerWithAddresses = {
+  id?: string;
   displayName?: string;
   defaultEmailAddress?: { emailAddress?: string } | null;
   defaultPhoneNumber?: { phoneNumber?: string } | null;
@@ -128,8 +131,9 @@ export async function findCustomerByEmail(
     const response = await admin.graphql(
       `#graphql
         query KdcCustomerVerification($query: String!) {
-          customers(first: 1, query: $query) {
+            customers(first: 1, query: $query) {
             nodes {
+              id
               displayName
               defaultEmailAddress { emailAddress }
               defaultPhoneNumber { phoneNumber }
@@ -182,6 +186,7 @@ export async function findCustomerByEmail(
     if (!customer) return null;
     const shippingAddress = preferredCustomerAddress(customer);
     return {
+      id: customer.id,
       displayName: customer.displayName,
       email: customer.defaultEmailAddress?.emailAddress,
       phone: customer.defaultPhoneNumber?.phoneNumber,
@@ -239,6 +244,7 @@ export async function findCustomerProfilesByEmail(
       .map(
         (_, index) => `
           customer${index}: customerByIdentifier(identifier: $identifier${index}) {
+            id
             displayName
             defaultEmailAddress { emailAddress }
             defaultPhoneNumber { phoneNumber }
@@ -302,6 +308,7 @@ export async function findCustomerProfilesByEmail(
           email,
           customer
             ? {
+                id: customer.id,
                 displayName: customer.displayName,
                 email: customer.defaultEmailAddress?.emailAddress,
                 phone: customer.defaultPhoneNumber?.phoneNumber,
@@ -370,9 +377,11 @@ export async function createHistoricalOrder(
     variables: {
       order: {
         name: order.name?.trim() || undefined,
-        customer: order.customerEmail
-          ? { toUpsert: { email: order.customerEmail } }
-          : undefined,
+        customer: order.customerId
+          ? { toAssociate: { id: order.customerId } }
+          : order.customerEmail
+            ? { toUpsert: { email: order.customerEmail } }
+            : undefined,
         shippingAddress: order.shippingAddress ?? undefined,
         currency: order.currency,
         financialStatus: financialStatus(order.financialStatus),
