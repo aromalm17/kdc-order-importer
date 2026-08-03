@@ -1596,6 +1596,13 @@ export async function permanentlyDeleteManagedOrder(
   if (input.confirmation.trim() !== expectedConfirmation) {
     throw new Error(`Type "${expectedConfirmation}" exactly to delete.`);
   }
+  return deleteManagedOrderById(admin, input.orderId);
+}
+
+async function deleteManagedOrderById(
+  admin: AdminApiContext,
+  orderId: string,
+) {
   const response = await admin.graphql(
     `#graphql
       mutation KdcManagedOrderDelete($orderId: ID!) {
@@ -1605,7 +1612,7 @@ export async function permanentlyDeleteManagedOrder(
         }
       }
     `,
-    { variables: { orderId: input.orderId } },
+    { variables: { orderId } },
   );
   const data = await readGraphql<{
     orderDelete: {
@@ -1614,8 +1621,22 @@ export async function permanentlyDeleteManagedOrder(
     };
   }>(response as Response, "Delete order");
   assertNoUserErrors(data.orderDelete.userErrors, "Delete order");
-  if (data.orderDelete.deletedId !== input.orderId) {
+  if (data.orderDelete.deletedId !== orderId) {
     throw new Error("Delete order: Shopify did not confirm the deletion.");
   }
   return data.orderDelete.deletedId;
+}
+
+export async function permanentlyDeleteManagedOrders(
+  admin: AdminApiContext,
+  orderIds: string[],
+) {
+  const deletedNames: string[] = [];
+  for (const orderId of orderIds) {
+    const order = await getManagedOrder(admin, orderId);
+    if (!order) continue;
+    await deleteManagedOrderById(admin, orderId);
+    deletedNames.push(order.name);
+  }
+  return deletedNames;
 }

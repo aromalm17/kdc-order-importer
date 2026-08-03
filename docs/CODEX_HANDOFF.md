@@ -2,6 +2,14 @@
 
 Last refreshed: 2026-08-03
 
+## Bulk Shopify-order selection and delete-all control (2026-08-03)
+
+The Shopify orders list now includes a checkbox column with a select-all
+header control and a bulk delete action for the currently selected orders on
+the page. The destructive action reuses the existing Shopify `orderDelete`
+mutation path, confirms in the browser before submit, and returns a success
+banner with the number of orders removed.
+
 ## Saved customer address fallback and restriction (2026-08-03)
 
 Historical imports now fetch the Shopify customer by workbook email, prefer

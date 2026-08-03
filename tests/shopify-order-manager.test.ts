@@ -4,6 +4,7 @@ import {
   listBulkPreorderVariants,
   listManagedOrders,
   permanentlyDeleteManagedOrder,
+  permanentlyDeleteManagedOrders,
   replaceManagedShippingCharge,
   updateManagedOrderContact,
   updateManagedOrderPreorder,
@@ -14,6 +15,68 @@ function response(data: unknown) {
   return {
     json: async () => ({ data }),
   };
+}
+
+function managedOrderResponse(id: string, name: string) {
+  return response({
+    order: {
+      id,
+      name,
+      createdAt: "2026-07-30T10:00:00Z",
+      updatedAt: "2026-07-30T10:00:00Z",
+      email: "buyer@example.com",
+      phone: null,
+      note: null,
+      displayFinancialStatus: "PAID",
+      displayFulfillmentStatus: "UNFULFILLED",
+      cancelledAt: null,
+      closedAt: null,
+      merchantEditable: true,
+      merchantEditableErrors: [],
+      customer: {
+        id: "gid://shopify/Customer/1",
+        displayName: "Buyer",
+        email: "buyer@example.com",
+        phone: null,
+      },
+      shippingAddress: null,
+      billingAddress: null,
+      lineItems: {
+        nodes: [
+          {
+            id: "gid://shopify/LineItem/1",
+            title: "Item",
+            variantTitle: null,
+            sku: null,
+            quantity: 1,
+            currentQuantity: 1,
+            unfulfilledQuantity: 1,
+            merchantEditable: true,
+            image: null,
+            discountedUnitPriceSet: {
+              shopMoney: { amount: "199.00", currencyCode: "INR" },
+            },
+            variant: null,
+          },
+        ],
+      },
+      shippingLines: { nodes: [] },
+      subtotalPriceSet: {
+        shopMoney: { amount: "199.00", currencyCode: "INR" },
+      },
+      totalShippingPriceSet: {
+        shopMoney: { amount: "0.00", currencyCode: "INR" },
+      },
+      currentTotalPriceSet: {
+        shopMoney: { amount: "199.00", currencyCode: "INR" },
+      },
+      totalOutstandingSet: {
+        shopMoney: { amount: "0.00", currencyCode: "INR" },
+      },
+      preorderEta: null,
+      preorderPendingPrice: null,
+    },
+  });
 }
 
 describe("Shopify order manager", () => {
@@ -676,5 +739,40 @@ describe("Shopify order manager", () => {
       expect.stringContaining("orderDelete"),
       { variables: { orderId: "gid://shopify/Order/1" } },
     );
+  });
+
+  it("deletes multiple managed orders in sequence", async () => {
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(
+        managedOrderResponse("gid://shopify/Order/1", "#1001"),
+      )
+      .mockResolvedValueOnce(
+        response({
+          orderDelete: {
+            deletedId: "gid://shopify/Order/1",
+            userErrors: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        managedOrderResponse("gid://shopify/Order/2", "#1002"),
+      )
+      .mockResolvedValueOnce(
+        response({
+          orderDelete: {
+            deletedId: "gid://shopify/Order/2",
+            userErrors: [],
+          },
+        }),
+      );
+
+    const deletedNames = await permanentlyDeleteManagedOrders(
+      { graphql } as never,
+      ["gid://shopify/Order/1", "gid://shopify/Order/2"],
+    );
+
+    expect(deletedNames).toEqual(["#1001", "#1002"]);
+    expect(graphql).toHaveBeenCalledTimes(4);
   });
 });

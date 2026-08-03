@@ -236,6 +236,24 @@ body {
   font-weight: 600;
 }
 
+.kdc-managed-delete-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid #e1e3e5;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.kdc-managed-delete-summary {
+  color: #616161;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
 .kdc-native-button,
 .kdc-danger-button {
   min-height: 36px;
@@ -612,6 +630,11 @@ body {
     align-items: stretch;
   }
 
+  .kdc-managed-delete-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .kdc-filter-summary {
     padding-top: 0;
   }
@@ -795,6 +818,10 @@ body {
 
 .kdc-table-row--selected td {
   background: #f1f8ff;
+}
+
+.kdc-table-row--selected td:first-child {
+  box-shadow: inset 4px 0 0 #005bd3;
 }
 
 .kdc-table th {
