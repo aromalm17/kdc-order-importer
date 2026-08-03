@@ -102,6 +102,45 @@ describe("Shopify order creation", () => {
     );
   });
 
+  it("marks preorder line items with a permanent preorder property", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          orderCreate: {
+            order: { id: "gid://shopify/Order/1", name: "#1001" },
+            userErrors: [],
+          },
+        },
+      }),
+    });
+
+    await createHistoricalOrder({ graphql } as never, {
+      name: "#2661",
+      customerId: "gid://shopify/Customer/1",
+      shippingAddress: {
+        address1: "Pavithram",
+        city: "Kozhikode",
+        countryCode: "IN",
+      },
+      currency: "INR",
+      tags: ["Preorder"],
+      lineItems: [
+        {
+          title: "Excel Cadillac Coupe DeVille",
+          variantId: "gid://shopify/ProductVariant/100",
+          quantity: 1,
+          unitPrice: 649,
+        },
+      ],
+    });
+
+    expect(graphql.mock.calls[0][1].variables.order.lineItems).toEqual([
+      expect.objectContaining({
+        properties: [{ name: "_preorder", value: "true" }],
+      }),
+    ]);
+  });
+
   it("refuses custom or unmapped line items before GraphQL", async () => {
     await expect(
       createHistoricalOrder({ graphql: vi.fn() } as never, {

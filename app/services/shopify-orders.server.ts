@@ -13,6 +13,9 @@ const ORDER_CREATE = `#graphql
   }
 `;
 
+const PREORDER_TAG = "preorder";
+const PREORDER_PROPERTY = { name: "_preorder", value: "true" };
+
 export type ImportableOrder = {
   name?: string | null;
   customerId?: string | null;
@@ -30,6 +33,7 @@ export type ImportableOrder = {
     variantId: string | null;
     quantity: number;
     unitPrice: number;
+    properties?: { name: string; value: string }[];
   }[];
 };
 
@@ -363,6 +367,9 @@ export async function createHistoricalOrder(
   }
   const fulfillmentStatus = normalizeFulfillmentStatus(order.fulfillmentStatus);
   const isFulfilled = isCompletedFulfillmentStatus(fulfillmentStatus);
+  const isTaggedPreorder = order.tags.some(
+    (tag) => tag.trim().toLowerCase() === PREORDER_TAG,
+  );
   if (!isFulfilled && fulfillmentStatus !== "Unfulfilled") {
     throw new Error(
       `Fulfillment Status is "${fulfillmentStatus}". Use Fulfilled or Unfulfilled before importing.`,
@@ -408,6 +415,14 @@ export async function createHistoricalOrder(
           variantId: line.variantId,
           quantity: line.quantity,
           requiresShipping: true,
+          ...(line.properties?.length || isTaggedPreorder
+            ? {
+                properties: [
+                  ...(isTaggedPreorder ? [PREORDER_PROPERTY] : []),
+                  ...(line.properties ?? []),
+                ],
+              }
+            : {}),
           priceSet: {
             shopMoney: {
               amount: line.unitPrice,
