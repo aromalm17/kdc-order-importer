@@ -14,10 +14,13 @@ import {
   updateBulkPreorderMessages,
 } from "../services/shopify-order-manager.server";
 
-function requiredVariantId(request: Request) {
+function requiredProductId(request: Request) {
   const id = new URL(request.url).searchParams.get("id")?.trim();
-  if (!id?.startsWith("gid://shopify/ProductVariant/")) {
-    throw new Response("A valid Shopify Variant ID is required.", {
+  if (
+    !id?.startsWith("gid://shopify/Product/") &&
+    !id?.startsWith("gid://shopify/ProductVariant/")
+  ) {
+    throw new Response("A valid Shopify Product ID is required.", {
       status: 400,
     });
   }
@@ -26,11 +29,13 @@ function requiredVariantId(request: Request) {
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const { admin, session } = await authenticate.admin(request);
-  const variantId = requiredVariantId(request);
+  const productId = requiredProductId(request);
   const variants = await listBulkPreorderVariants(admin, session.shop);
-  const variant = variants.find((item) => item.id === variantId);
+  const variant = variants.find(
+    (item) => item.id === productId || item.variantIds.includes(productId),
+  );
   if (!variant) {
-    throw new Response("No Shopify orders contain this variant.", {
+    throw new Response("No Shopify orders contain this product.", {
       status: 404,
     });
   }
@@ -40,15 +45,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export async function action({ request }: ActionFunctionArgs) {
   const { admin, session } = await authenticate.admin(request);
-  const variantId = requiredVariantId(request);
+  const productId = requiredProductId(request);
   const form = await request.formData();
 
   try {
     const variants = await listBulkPreorderVariants(admin, session.shop);
-    const variant = variants.find((item) => item.id === variantId);
+    const variant = variants.find(
+      (item) => item.id === productId || item.variantIds.includes(productId),
+    );
     if (!variant) {
       return Response.json(
-        { error: "No Shopify orders contain this variant." },
+        { error: "No Shopify orders contain this product." },
         { status: 404 },
       );
     }
@@ -63,7 +70,7 @@ export async function action({ request }: ActionFunctionArgs) {
     });
     invalidateBulkPreorderCache(session.shop);
     return redirect(
-      `/app/preorders/variant?id=${encodeURIComponent(variantId)}&saved=${updated}`,
+      `/app/preorders/variant?id=${encodeURIComponent(variant.id)}&saved=${updated}`,
     );
   } catch (error) {
     return Response.json(
@@ -78,7 +85,6 @@ export default function BulkPreorderVariant() {
   const actionData = useActionData() as { error?: string } | undefined;
   const navigation = useNavigation();
   const saving = navigation.state === "submitting";
-  const numericVariantId = variant.id.split("/").at(-1);
   const numericProductId = variant.productId.split("/").at(-1);
 
   return (
@@ -99,8 +105,8 @@ export default function BulkPreorderVariant() {
       <s-section heading="Bulk preorder customer message">
         <s-banner tone="info">
           This writes the same ETA and pending price to every selected order
-          containing this exact Variant ID. Product data and order totals are
-          not changed.
+          containing this exact product. Product data and order totals are not
+          changed.
         </s-banner>
         <Form method="post" className="kdc-managed-form">
           <div className="kdc-form-grid">
@@ -126,8 +132,7 @@ export default function BulkPreorderVariant() {
             </label>
           </div>
           <p className="kdc-muted">
-            Product ID: {numericProductId} · Variant ID: {numericVariantId} ·
-            SKU: {variant.sku ?? "—"}
+            Product ID: {numericProductId} · Variants: {variant.variantIds.length}
           </p>
 
           <div className="kdc-table-wrap">

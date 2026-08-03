@@ -19,24 +19,23 @@ export async function loader({ request }: LoaderFunctionArgs) {
     ? variants.filter((variant) =>
         [
           variant.title,
-          variant.sku,
-          variant.id,
-          numericId(variant.id),
           variant.productId,
           numericId(variant.productId),
+          ...(variant.variantIds ?? []),
+          variant.sku,
         ].some((value) => value?.toLowerCase().includes(needle)),
       )
     : variants;
 
   return {
     search,
-    totalVariants: variants.length,
+    totalProducts: variants.length,
     variants: filtered.map((variant) => {
       const { orders, ...summary } = variant;
       return {
         ...summary,
-        variantNumericId: numericId(variant.id),
         productNumericId: numericId(variant.productId),
+        variantCount: variant.variantIds.length,
         latestOrderAt: orders[0]?.createdAt ?? null,
       };
     }),
@@ -57,21 +56,19 @@ export default function BulkPreorders() {
           <div>
             <h2>Products across Shopify orders</h2>
             <p>
-              Variants are grouped by Variant ID and sorted by matching order
+              Products are grouped by product name and sorted by matching order
               count, highest first. Orders inside each product are newest first.
             </p>
           </div>
           <Form method="get" className="kdc-managed-search">
-            <label htmlFor="bulk-preorder-search">
-              Product ID or Variant ID
-            </label>
+            <label htmlFor="bulk-preorder-search">Product name or ID</label>
             <div>
               <input
                 id="bulk-preorder-search"
                 className="kdc-text-input"
                 name="q"
                 defaultValue={data.search}
-                placeholder="Product ID, Variant ID, SKU, or title"
+                placeholder="Product name, ID, SKU, or variant ID"
               />
               <button className="kdc-native-button" type="submit">
                 Filter
@@ -87,7 +84,7 @@ export default function BulkPreorders() {
       </s-section>
 
       <s-section
-        heading={`${data.variants.length} of ${data.totalVariants} product variants`}
+        heading={`${data.variants.length} of ${data.totalProducts} products`}
       >
         {data.variants.length ? (
           <div className="kdc-table-wrap">
@@ -96,8 +93,7 @@ export default function BulkPreorders() {
                 <tr>
                   <th>Product</th>
                   <th>Product ID</th>
-                  <th>Variant ID</th>
-                  <th>SKU</th>
+                  <th>Variants</th>
                   <th>Orders</th>
                   <th>Quantity</th>
                   <th>Latest order</th>
@@ -120,15 +116,14 @@ export default function BulkPreorders() {
                           </span>
                         )}
                         <Link
-                          to={`/app/preorders/variant?id=${encodeURIComponent(variant.id)}`}
+                          to={`/app/preorders/variant?id=${encodeURIComponent(variant.productId)}`}
                         >
                           <strong>{variant.title}</strong>
                         </Link>
                       </div>
                     </td>
                     <td>{variant.productNumericId}</td>
-                    <td>{variant.variantNumericId}</td>
-                    <td>{variant.sku ?? "—"}</td>
+                    <td>{variant.variantCount}</td>
                     <td>
                       <strong>{variant.orderCount}</strong>
                     </td>

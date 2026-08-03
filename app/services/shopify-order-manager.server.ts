@@ -113,6 +113,7 @@ export type BulkPreorderVariant = {
   title: string;
   productTitle: string;
   variantTitle: string;
+  variantIds: string[];
   sku?: string | null;
   imageUrl?: string | null;
   orderCount: number;
@@ -431,8 +432,9 @@ export async function listBulkPreorderVariants(
 
   const grouped = new Map<
     string,
-    Omit<BulkPreorderVariant, "orderCount" | "totalQuantity"> & {
+    Omit<BulkPreorderVariant, "orderCount" | "totalQuantity" | "variantIds"> & {
       orderIds: Set<string>;
+      variantIds: Set<string>;
     }
   >();
   let after: string | null = null;
@@ -483,23 +485,23 @@ export async function listBulkPreorderVariants(
         if (!variant || line.currentQuantity <= 0) continue;
         const variantTitle =
           variant.title === "Default Title" ? "" : variant.title;
-        const title = variantTitle
-          ? `${variant.product.title} — ${variantTitle}`
-          : variant.product.title;
+        const title = variant.product.title;
         const current: Omit<
           BulkPreorderVariant,
-          "orderCount" | "totalQuantity"
-        > & { orderIds: Set<string> } = grouped.get(variant.id) ?? {
-          id: variant.id,
-          productId: variant.product.id,
-          title,
-          productTitle: variant.product.title,
-          variantTitle,
-          sku: variant.sku ?? null,
-          imageUrl: variant.image?.url ?? null,
-          orders: [] as BulkPreorderOrder[],
-          orderIds: new Set<string>(),
-        };
+          "orderCount" | "totalQuantity" | "variantIds"
+        > & { orderIds: Set<string>; variantIds: Set<string> } =
+          grouped.get(variant.product.id) ?? {
+            id: variant.product.id,
+            productId: variant.product.id,
+            title,
+            productTitle: variant.product.title,
+            variantTitle,
+            sku: variant.sku ?? null,
+            imageUrl: variant.image?.url ?? null,
+            orders: [] as BulkPreorderOrder[],
+            orderIds: new Set<string>(),
+            variantIds: new Set<string>(),
+          };
         const existing = current.orders.find((item) => item.id === order.id);
         if (existing) {
           existing.quantity += line.currentQuantity;
@@ -516,7 +518,8 @@ export async function listBulkPreorderVariants(
           });
           current.orderIds.add(order.id);
         }
-        grouped.set(variant.id, current);
+        current.variantIds.add(variant.id);
+        grouped.set(variant.product.id, current);
       }
     }
 
@@ -526,9 +529,10 @@ export async function listBulkPreorderVariants(
   } while (after && scannedOrders < BULK_PREORDER_MAX_ORDERS);
 
   const variants = [...grouped.values()]
-    .map(({ orderIds, ...variant }) => ({
+    .map(({ orderIds, variantIds, ...variant }) => ({
       ...variant,
       orderCount: orderIds.size,
+      variantIds: [...variantIds],
       totalQuantity: variant.orders.reduce(
         (total, order) => total + order.quantity,
         0,

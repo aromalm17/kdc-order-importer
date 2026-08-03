@@ -141,12 +141,22 @@ describe("Shopify order manager", () => {
     expect(graphql.mock.calls[0][0]).not.toContain("displayFinancialStatus");
   });
 
-  it("groups ordered products by exact variant and sorts by order count", async () => {
-    const variant = {
+  it("groups ordered products by product name and sorts by order count", async () => {
+    const redVariant = {
       id: "gid://shopify/ProductVariant/200",
       title: "Red",
       sku: "CAD-RED",
       image: { url: "https://cdn.shopify.com/s/files/1/cadillac.jpg" },
+      product: {
+        id: "gid://shopify/Product/100",
+        title: "Cadillac Coupe DeVille",
+      },
+    };
+    const blueVariant = {
+      id: "gid://shopify/ProductVariant/201",
+      title: "Blue",
+      sku: "CAD-BLUE",
+      image: { url: "https://cdn.shopify.com/s/files/1/cadillac-blue.jpg" },
       product: {
         id: "gid://shopify/Product/100",
         title: "Cadillac Coupe DeVille",
@@ -165,7 +175,7 @@ describe("Shopify order manager", () => {
               preorderEta: { value: "August" },
               preorderPendingPrice: { value: "2000.00" },
               lineItems: {
-                nodes: [{ currentQuantity: 2, variant }],
+                nodes: [{ currentQuantity: 2, variant: redVariant }],
               },
             },
             {
@@ -177,7 +187,7 @@ describe("Shopify order manager", () => {
               preorderEta: null,
               preorderPendingPrice: null,
               lineItems: {
-                nodes: [{ currentQuantity: 1, variant }],
+                nodes: [{ currentQuantity: 1, variant: blueVariant }],
               },
             },
           ],
@@ -192,12 +202,16 @@ describe("Shopify order manager", () => {
     );
 
     expect(variants[0]).toMatchObject({
-      id: "gid://shopify/ProductVariant/200",
+      id: "gid://shopify/Product/100",
       productId: "gid://shopify/Product/100",
-      title: "Cadillac Coupe DeVille — Red",
+      title: "Cadillac Coupe DeVille",
       orderCount: 2,
       totalQuantity: 3,
     });
+    expect(variants[0].variantIds).toEqual([
+      "gid://shopify/ProductVariant/200",
+      "gid://shopify/ProductVariant/201",
+    ]);
     expect(variants[0].orders.map((order) => order.name)).toEqual([
       "#1002",
       "#1001",
