@@ -754,6 +754,7 @@ export async function updateManagedOrderContact(
 }
 
 const PREORDER_METAFIELD_NAMESPACE = "custom";
+const PREORDER_ORDER_TAG = "Preorder";
 const PREORDER_METAFIELD_DEFINITIONS = [
   {
     key: "preorder_eta",
@@ -954,6 +955,7 @@ export async function updateManagedOrderPreorder(
       data.metafieldsDelete.userErrors,
       "Clear preorder message",
     );
+    await syncOrderTag(admin, orderId, "remove");
     return;
   }
   await ensurePreorderMetafieldDefinitions(admin);
@@ -993,6 +995,7 @@ export async function updateManagedOrderPreorder(
     metafieldsSet: { userErrors: UserError[] };
   }>(response as Response, "Update preorder message");
   assertNoUserErrors(data.metafieldsSet.userErrors, "Update preorder message");
+  await syncOrderTag(admin, orderId, "add");
 }
 
 function normalizePreorderInput(input: { eta: string; pendingPrice: string }) {
@@ -1014,6 +1017,46 @@ function normalizePreorderInput(input: { eta: string; pendingPrice: string }) {
     throw new Error("Pending price must be zero or a positive amount.");
   }
   return { eta, pendingPriceText, pendingPrice };
+}
+
+async function syncOrderTag(
+  admin: AdminApiContext,
+  orderId: string,
+  intent: "add" | "remove",
+) {
+  const mutation =
+    intent === "add"
+      ? `#graphql
+          mutation KdcAddOrderTag($id: ID!, $tags: [String!]!) {
+            tagsAdd(id: $id, tags: $tags) {
+              userErrors { field message }
+            }
+          }
+        `
+      : `#graphql
+          mutation KdcRemoveOrderTag($id: ID!, $tags: [String!]!) {
+            tagsRemove(id: $id, tags: $tags) {
+              userErrors { field message }
+            }
+          }
+        `;
+  const response = await admin.graphql(mutation, {
+    variables: {
+      id: orderId,
+      tags: [PREORDER_ORDER_TAG],
+    },
+  });
+  const data = await readGraphql<{
+    tagsAdd?: { userErrors: UserError[] };
+    tagsRemove?: { userErrors: UserError[] };
+  }>(
+    response as Response,
+    intent === "add" ? "Add preorder tag" : "Remove preorder tag",
+  );
+  assertNoUserErrors(
+    intent === "add" ? data.tagsAdd?.userErrors : data.tagsRemove?.userErrors,
+    intent === "add" ? "Add preorder tag" : "Remove preorder tag",
+  );
 }
 
 function chunks<T>(items: T[], size: number) {
@@ -1069,6 +1112,9 @@ export async function updateBulkPreorderMessages(
         data.metafieldsDelete.userErrors,
         "Clear bulk preorder messages",
       );
+      for (const ownerId of batch) {
+        await syncOrderTag(admin, ownerId, "remove");
+      }
     }
     return uniqueOrderIds.length;
   }
@@ -1114,6 +1160,9 @@ export async function updateBulkPreorderMessages(
       data.metafieldsSet.userErrors,
       "Update bulk preorder messages",
     );
+    for (const ownerId of batch) {
+      await syncOrderTag(admin, ownerId, "add");
+    }
   }
   return uniqueOrderIds.length;
 }
