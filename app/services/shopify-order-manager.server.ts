@@ -120,6 +120,7 @@ export type BulkPreorderVariant = {
   totalQuantity: number;
   preorderEta?: string | null;
   preorderPendingPrice?: string | null;
+  preorderClosing?: string | null;
   isTaggedPreorder: boolean;
   orders: BulkPreorderOrder[];
 };
@@ -315,15 +316,16 @@ const BULK_PREORDER_ORDERS_QUERY = `#graphql
               title
               sku
               image { url }
-              product {
-                id
-                title
-                tags
-                preorderEta: metafield(namespace: "custom", key: "preorder_eta") { value }
-                preorderPendingPrice: metafield(namespace: "custom", key: "preorder_pending_price") { value }
+                product {
+                  id
+                  title
+                  tags
+                  preorderEta: metafield(namespace: "custom", key: "preorder_eta") { value }
+                  preorderPendingPrice: metafield(namespace: "custom", key: "preorder_pending_price") { value }
+                  preorderClosing: metafield(namespace: "custom", key: "preorder_closing") { value }
+                }
               }
             }
-          }
         }
       }
       pageInfo { hasNextPage endCursor }
@@ -480,6 +482,7 @@ export async function listBulkPreorderVariants(
                   tags: string[];
                   preorderEta?: { value: string } | null;
                   preorderPendingPrice?: { value: string } | null;
+                  preorderClosing?: { value: string } | null;
                 };
               } | null;
             }>;
@@ -517,6 +520,7 @@ export async function listBulkPreorderVariants(
           preorderEta: variant.product.preorderEta?.value ?? null,
           preorderPendingPrice:
             variant.product.preorderPendingPrice?.value ?? null,
+          preorderClosing: variant.product.preorderClosing?.value ?? null,
           isTaggedPreorder: (variant.product.tags ?? []).some(
             (tag) => tag.trim().toLowerCase() === "preorder",
           ),
@@ -799,8 +803,7 @@ const PRODUCT_PREORDER_METAFIELD_DEFINITIONS = [
     key: "preorder_closing",
     name: "Preorder Closing",
     type: "single_line_text_field",
-    description:
-      "Date/time or note showing when preorder reservations close.",
+    description: "Date/time or note showing when preorder reservations close.",
   },
 ] as const;
 
@@ -1184,11 +1187,16 @@ export async function updateManagedOrderPreorder(
   await syncOrderTag(admin, orderId, "add");
 }
 
-function normalizePreorderInput(input: { eta: string; pendingPrice: string }) {
+function normalizePreorderInput(input: {
+  eta: string;
+  pendingPrice: string;
+  closing?: string;
+}) {
   const eta = input.eta.trim();
   const pendingPriceText = input.pendingPrice.trim().replaceAll(",", "");
-  if (!eta && !pendingPriceText) {
-    return { eta, pendingPriceText, pendingPrice: null };
+  const closing = input.closing?.trim() ?? "";
+  if (!eta && !pendingPriceText && !closing) {
+    return { eta, pendingPriceText, pendingPrice: null, closing };
   }
   if (!eta || !pendingPriceText) {
     throw new Error(
@@ -1198,11 +1206,14 @@ function normalizePreorderInput(input: { eta: string; pendingPrice: string }) {
   if (eta.length > 120) {
     throw new Error("Preorder ETA must be 120 characters or fewer.");
   }
+  if (closing.length > 120) {
+    throw new Error("Preorder Closing must be 120 characters or fewer.");
+  }
   const pendingPrice = Number(pendingPriceText);
   if (!Number.isFinite(pendingPrice) || pendingPrice < 0) {
     throw new Error("Pending price must be zero or a positive amount.");
   }
-  return { eta, pendingPriceText, pendingPrice };
+  return { eta, pendingPriceText, pendingPrice, closing };
 }
 
 async function syncOrderTag(
@@ -1248,7 +1259,7 @@ async function syncOrderTag(
 async function verifyProductPreorderDetails(
   admin: AdminApiContext,
   productId: string,
-  expected: { eta: string; pendingPrice: number },
+  expected: { eta: string; pendingPrice: number; closing?: string },
 ) {
   const response = await admin.graphql(
     `#graphql
@@ -1265,6 +1276,9 @@ async function verifyProductPreorderDetails(
           ) {
             value
           }
+          preorderClosing: metafield(namespace: "custom", key: "preorder_closing") {
+            value
+          }
         }
       }
     `,
@@ -1275,22 +1289,27 @@ async function verifyProductPreorderDetails(
       tags: string[];
       preorderEta?: { value: string } | null;
       preorderPendingPrice?: { value: string } | null;
+      preorderClosing?: { value: string } | null;
     } | null;
   }>(response as Response, "Verify product preorder details");
   const product = data.product;
   if (!product) {
-    throw new Error("Verify product preorder details: Shopify returned no product.");
+    throw new Error(
+      "Verify product preorder details: Shopify returned no product.",
+    );
   }
   const hasPreorderTag = product.tags.some(
     (tag) => tag.trim().toLowerCase() === "preorder",
   );
   const savedEta = product.preorderEta?.value?.trim() ?? "";
   const savedPendingPrice = Number(product.preorderPendingPrice?.value ?? "");
+  const savedClosing = product.preorderClosing?.value?.trim() ?? "";
   if (
     !hasPreorderTag ||
     savedEta !== expected.eta ||
     !Number.isFinite(savedPendingPrice) ||
-    savedPendingPrice !== expected.pendingPrice
+    savedPendingPrice !== expected.pendingPrice ||
+    savedClosing !== (expected.closing ?? "")
   ) {
     throw new Error(
       "Shopify accepted the save request, but the product preorder tag/metafields were not saved. Re-open the app to approve the write_products permission, then try again.",
@@ -1301,14 +1320,15 @@ async function verifyProductPreorderDetails(
 export async function updateBulkPreorderMessages(
   admin: AdminApiContext,
   productId: string,
-  input: { eta: string; pendingPrice: string },
+  input: { eta: string; pendingPrice: string; closing?: string },
 ) {
   if (!productId.startsWith("gid://shopify/Product/")) {
     throw new Error("A valid Shopify Product ID is required.");
   }
-  const { eta, pendingPriceText, pendingPrice } = normalizePreorderInput(input);
+  const { eta, pendingPriceText, pendingPrice, closing } =
+    normalizePreorderInput(input);
 
-  if (!eta && !pendingPriceText) {
+  if (!eta && !pendingPriceText && !closing) {
     const response = await admin.graphql(
       `#graphql
           mutation KdcClearProductPreorder(
@@ -1322,11 +1342,13 @@ export async function updateBulkPreorderMessages(
         `,
       {
         variables: {
-          metafields: PREORDER_METAFIELD_DEFINITIONS.map((definition) => ({
-            ownerId: productId,
-            namespace: PREORDER_METAFIELD_NAMESPACE,
-            key: definition.key,
-          })),
+          metafields: PRODUCT_PREORDER_METAFIELD_DEFINITIONS.map(
+            (definition) => ({
+              ownerId: productId,
+              namespace: PREORDER_METAFIELD_NAMESPACE,
+              key: definition.key,
+            }),
+          ),
         },
       },
     );
@@ -1370,6 +1392,17 @@ export async function updateBulkPreorderMessages(
             type: "number_decimal",
             value: pendingPrice!.toFixed(2),
           },
+          ...(closing
+            ? [
+                {
+                  ownerId: productId,
+                  namespace: PREORDER_METAFIELD_NAMESPACE,
+                  key: "preorder_closing",
+                  type: "single_line_text_field",
+                  value: closing,
+                },
+              ]
+            : []),
         ],
       },
     },
@@ -1385,6 +1418,7 @@ export async function updateBulkPreorderMessages(
   await verifyProductPreorderDetails(admin, productId, {
     eta,
     pendingPrice: pendingPrice!,
+    closing,
   });
   return 1;
 }

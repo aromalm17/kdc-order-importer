@@ -65,6 +65,7 @@ export async function action({ request }: ActionFunctionArgs) {
     const updated = await updateBulkPreorderMessages(admin, variant.productId, {
       eta: String(form.get("preorderEta") ?? ""),
       pendingPrice: String(form.get("preorderPendingPrice") ?? ""),
+      closing: String(form.get("preorderClosing") ?? ""),
     });
     invalidateBulkPreorderCache(session.shop);
     return redirect(
@@ -128,6 +129,16 @@ export default function BulkPreorderVariant() {
                 name="preorderPendingPrice"
                 placeholder="2000"
                 defaultValue={variant.preorderPendingPrice ?? ""}
+              />
+            </label>
+            <label>
+              Preorder Closing
+              <input
+                className="kdc-text-input"
+                name="preorderClosing"
+                maxLength={120}
+                placeholder="Jul 8, 2026"
+                defaultValue={variant.preorderClosing ?? ""}
               />
             </label>
           </div>
