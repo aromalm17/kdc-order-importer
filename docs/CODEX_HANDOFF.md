@@ -1,6 +1,47 @@
 # Codex handoff: KDC Order Importer
 
-Last refreshed: 2026-08-03
+Last refreshed: 2026-08-04
+
+## Product-level preorder editor and historical-order classification (2026-08-04)
+
+Bulk Preorders now writes preorder data to the Shopify product represented by
+the matching historical orders, rather than writing the same data onto each
+order. Saving both fields adds the product tag `Preorder` and sets product
+metafields `custom.preorder_eta` and `custom.preorder_pending_price`. Clearing
+both fields removes those product values and tag.
+
+The app scope now includes `write_products`. Shopify app configuration release
+`order-import-5` is live:
+https://dev.shopify.com/dashboard/172441662/apps/400685236225/versions/1075423936513
+
+The theme customer account also treats an unfulfilled historical line as a
+preorder when its current linked product has the `preorder`/`pre-order` tag and
+both product metafields. This lets already imported orders appear in Pre-Orders
+without attempting to rewrite historical line-item properties.
+
+Validation: 92 tests, typecheck, lint, production build, diff check, and Theme
+Check completed. Theme Check reported only the documented pre-existing error
+and unrelated warnings.
+
+## Preorder metafield import and live deployment (2026-08-04)
+
+The importer now treats any product with both preorder metafields present as a
+preorder item:
+
+- `custom.preorder_eta`
+- `custom.preorder_pending_price`
+
+Those values are carried through the workbook verification path, written onto
+imported order line-item properties, and preserved when the importer creates
+historical orders. The backend also keeps the preorder variant editor in sync
+with the same product-level metafield detection so the same preorder flag is
+used across import, bulk editing, and storefront/customer-account rendering.
+
+- Local source commit: `03c4d36`
+- Deploy branch push: `main` on `deploy`
+- Production verification: `/healthz` returned HTTP 200 with
+  `{"status":"ok"}`
+- Result: live importer behavior updated successfully
 
 ## Bulk Shopify-order selection and delete-all control (2026-08-03)
 

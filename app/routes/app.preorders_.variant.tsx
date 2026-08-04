@@ -59,12 +59,7 @@ export async function action({ request }: ActionFunctionArgs) {
         { status: 404 },
       );
     }
-    const allowedIds = new Set(variant.orders.map((order) => order.id));
-    const selectedOrderIds = form
-      .getAll("selectedOrderId")
-      .map(String)
-      .filter((id) => allowedIds.has(id));
-    const updated = await updateBulkPreorderMessages(admin, selectedOrderIds, {
+    const updated = await updateBulkPreorderMessages(admin, variant.productId, {
       eta: String(form.get("preorderEta") ?? ""),
       pendingPrice: String(form.get("preorderPendingPrice") ?? ""),
     });
@@ -95,18 +90,18 @@ export default function BulkPreorderVariant() {
 
       {saved ? (
         <s-banner tone="success">
-          Updated preorder details on {saved} selected order(s).
+          Updated this product as a preorder. Its existing unfulfilled customer
+          orders can now appear in Pre-Orders.
         </s-banner>
       ) : null}
       {actionData?.error ? (
         <s-banner tone="critical">{actionData.error}</s-banner>
       ) : null}
 
-      <s-section heading="Bulk preorder customer message">
+      <s-section heading="Product preorder details">
         <s-banner tone="info">
-          This writes the same ETA and preorder price to every selected order
-          containing this exact product. Product data and order totals are not
-          changed.
+          This adds the preorder tag and saves the ETA and pending price on the
+          Shopify product. Existing order totals and line items are not changed.
         </s-banner>
         <Form method="post" className="kdc-managed-form">
           <div className="kdc-form-grid">
@@ -117,6 +112,7 @@ export default function BulkPreorderVariant() {
                 name="preorderEta"
                 maxLength={120}
                 placeholder="first week of August"
+                defaultValue={variant.preorderEta ?? ""}
               />
             </label>
             <label>
@@ -128,54 +124,28 @@ export default function BulkPreorderVariant() {
                 step="0.01"
                 name="preorderPendingPrice"
                 placeholder="2000"
+                defaultValue={variant.preorderPendingPrice ?? ""}
               />
             </label>
           </div>
           <p className="kdc-muted">
-            Product ID: {numericProductId} · Variants: {variant.variantIds.length}
+            Product ID: {numericProductId} · Variants:{" "}
+            {variant.variantIds.length}
           </p>
 
           <div className="kdc-table-wrap">
             <table className="kdc-table">
               <thead>
                 <tr>
-                  <th>
-                    <input
-                      type="checkbox"
-                      aria-label="Select all matching orders"
-                      defaultChecked
-                      onChange={(event) => {
-                        const form = event.currentTarget.closest("form");
-                        form
-                          ?.querySelectorAll<HTMLInputElement>(
-                            'input[name="selectedOrderId"]',
-                          )
-                          .forEach((checkbox) => {
-                            checkbox.checked = event.currentTarget.checked;
-                          });
-                      }}
-                    />
-                  </th>
                   <th>Order</th>
                   <th>Date</th>
                   <th>Customer</th>
                   <th>Qty</th>
-                  <th>Current ETA</th>
-                  <th>Current preorder price</th>
                 </tr>
               </thead>
               <tbody>
                 {variant.orders.map((order) => (
                   <tr key={order.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        name="selectedOrderId"
-                        value={order.id}
-                        aria-label={`Select ${order.name}`}
-                        defaultChecked
-                      />
-                    </td>
                     <td>
                       <Link
                         to={`/app/orders/order?id=${encodeURIComponent(order.id)}`}
@@ -194,8 +164,6 @@ export default function BulkPreorderVariant() {
                       <div className="kdc-muted">{order.email ?? "—"}</div>
                     </td>
                     <td>{order.quantity}</td>
-                    <td>{order.preorderEta ?? "—"}</td>
-                    <td>{order.preorderPendingPrice ?? "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -204,15 +172,15 @@ export default function BulkPreorderVariant() {
 
           <div className="kdc-form-actions">
             <span className="kdc-muted">
-              {variant.orderCount} matching order(s), newest first. Clear both
-              fields to remove the message from selected orders.
+              {variant.orderCount} existing matching order(s), newest first.
+              Clear both fields to remove the product preorder data and tag.
             </span>
             <button
               className="kdc-native-button"
               type="submit"
               disabled={saving}
             >
-              {saving ? "Updating selected orders…" : "Update selected orders"}
+              {saving ? "Updating product…" : "Update preorder product"}
             </button>
           </div>
         </Form>

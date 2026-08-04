@@ -533,6 +533,7 @@ describe("workbook parser", () => {
       title: "Car — Black",
       imageUrls: ["https://cdn.shopify.com/s/files/1/0001/files/black.jpg?v=2"],
       hasUnreadyImage: false,
+      isPreorder: false,
     });
     rebuildOrderIssues(parsed.orders[0]);
 
@@ -565,6 +566,7 @@ describe("workbook parser", () => {
       title: "Car — Black",
       imageUrls: ["https://cdn.shopify.com/s/files/1/0001/files/black.jpg?v=2"],
       hasUnreadyImage: false,
+      isPreorder: false,
     });
     rebuildOrderIssues(parsed.orders[0]);
 
@@ -611,11 +613,13 @@ describe("workbook parser", () => {
       title: "Car A — Default",
       imageUrls: ["https://cdn.shopify.com/s/files/1/a.jpg?v=2"],
       hasUnreadyImage: false,
+      isPreorder: false,
     });
     applyVariantImageVerification(parsed.orders[0].lineItems[1], {
       title: "Car B — Default",
       imageUrls: ["https://cdn.shopify.com/s/files/1/not-b.jpg?v=2"],
       hasUnreadyImage: false,
+      isPreorder: false,
     });
     rebuildOrderIssues(parsed.orders[0]);
 
@@ -656,6 +660,7 @@ describe("workbook parser", () => {
       title: "Car — Default",
       imageUrls: [],
       hasUnreadyImage: false,
+      isPreorder: false,
     });
     expect(line.issues.map((issue) => issue.code)).toContain(
       "VARIANT_IMAGE_NOT_ASSIGNED",

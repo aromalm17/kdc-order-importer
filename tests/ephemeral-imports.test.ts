@@ -109,10 +109,9 @@ describe("Selective pending-order import", () => {
     ]);
 
     expect(findCustomerProfilesByEmail).toHaveBeenCalledTimes(1);
-    expect(findCustomerProfilesByEmail).toHaveBeenCalledWith(
-      expect.anything(),
-      ["buyer@example.com"],
-    );
+    expect(findCustomerProfilesByEmail).toHaveBeenCalledWith({}, [
+      "buyer@example.com",
+    ]);
     expect(first.get("buyer@example.com")).toEqual(cachedProfile);
     expect(second.get("buyer@example.com")).toEqual(cachedProfile);
     expect(job.customerProfiles.get("buyer@example.com")).toEqual(
@@ -167,13 +166,13 @@ describe("Selective pending-order import", () => {
       )
       .mockResolvedValueOnce(
         new Map([
-        [
-          "buyer@example.com",
-          {
-            id: "gid://shopify/Customer/1",
-            email: "buyer@example.com",
-            defaultShippingAddress: {
-              address1: "Pavithram",
+          [
+            "buyer@example.com",
+            {
+              id: "gid://shopify/Customer/1",
+              email: "buyer@example.com",
+              defaultShippingAddress: {
+                address1: "Pavithram",
                 city: "Kozhikode",
                 countryCode: "IN",
               },
@@ -492,17 +491,17 @@ describe("Selective pending-order import", () => {
     await importReadyOrders(job, {} as never, [order.deterministicKey]);
 
     expect(createHistoricalOrder).toHaveBeenCalledWith(
-      expect.anything(),
+      {},
       expect.objectContaining({
         name: "#2660",
-        lineItems: [
-          {
+        lineItems: expect.arrayContaining([
+          expect.objectContaining({
             title: "Car",
             variantId: "gid://shopify/ProductVariant/100",
             quantity: 2,
             unitPrice: 649,
-          },
-        ],
+          }),
+        ]),
       }),
     );
   });

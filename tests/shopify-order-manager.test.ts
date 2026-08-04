@@ -150,6 +150,9 @@ describe("Shopify order manager", () => {
       product: {
         id: "gid://shopify/Product/100",
         title: "Cadillac Coupe DeVille",
+        tags: ["preorder"],
+        preorderEta: { value: "September end" },
+        preorderPendingPrice: { value: "1550.00" },
       },
     };
     const blueVariant = {
@@ -160,6 +163,9 @@ describe("Shopify order manager", () => {
       product: {
         id: "gid://shopify/Product/100",
         title: "Cadillac Coupe DeVille",
+        tags: ["preorder"],
+        preorderEta: { value: "September end" },
+        preorderPendingPrice: { value: "1550.00" },
       },
     };
     const graphql = vi.fn().mockResolvedValue(
@@ -207,6 +213,9 @@ describe("Shopify order manager", () => {
       title: "Cadillac Coupe DeVille",
       orderCount: 2,
       totalQuantity: 3,
+      isTaggedPreorder: true,
+      preorderEta: "September end",
+      preorderPendingPrice: "1550.00",
     });
     expect(variants[0].variantIds).toEqual([
       "gid://shopify/ProductVariant/200",
@@ -388,31 +397,10 @@ describe("Shopify order manager", () => {
     });
   });
 
-  it("updates the preorder message across multiple selected orders", async () => {
-    const graphql = vi
-      .fn()
-      .mockResolvedValueOnce(
-        response({
-          eta: {
-            key: "preorder_eta",
-            type: { name: "single_line_text_field" },
-            access: { customerAccount: "READ" },
-          },
-          pendingPrice: {
-            key: "preorder_pending_price",
-            type: { name: "number_decimal" },
-            access: { customerAccount: "READ" },
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        response({
-          metafieldsSet: { metafields: [], userErrors: [] },
-        }),
-      );
-    graphql.mockResolvedValueOnce(
+  it("updates preorder metadata and tag on the ordered product", async () => {
+    const graphql = vi.fn().mockResolvedValueOnce(
       response({
-        tagsAdd: { userErrors: [] },
+        metafieldsSet: { metafields: [], userErrors: [] },
       }),
     );
     graphql.mockResolvedValueOnce(
@@ -423,29 +411,32 @@ describe("Shopify order manager", () => {
 
     const updated = await updateBulkPreorderMessages(
       { graphql } as never,
-      ["gid://shopify/Order/1", "gid://shopify/Order/2"],
+      "gid://shopify/Product/100",
       { eta: "first week of August", pendingPrice: "2,000" },
     );
 
-    expect(updated).toBe(2);
-    expect(graphql).toHaveBeenCalledTimes(4);
-    expect(graphql.mock.calls[1][1].variables.metafields).toHaveLength(4);
-    expect(graphql.mock.calls[1][1].variables.metafields).toEqual(
+    expect(updated).toBe(1);
+    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(graphql.mock.calls[0][1].variables.metafields).toHaveLength(2);
+    expect(graphql.mock.calls[0][1].variables.metafields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          ownerId: "gid://shopify/Order/1",
+          ownerId: "gid://shopify/Product/100",
           key: "preorder_eta",
           value: "first week of August",
         }),
         expect.objectContaining({
-          ownerId: "gid://shopify/Order/2",
+          ownerId: "gid://shopify/Product/100",
           key: "preorder_pending_price",
           value: "2000.00",
         }),
       ]),
     );
-    expect(graphql.mock.calls[2][0]).toContain("tagsAdd");
-    expect(graphql.mock.calls[3][0]).toContain("tagsAdd");
+    expect(graphql.mock.calls[1][0]).toContain("tagsAdd");
+    expect(graphql.mock.calls[1][1].variables).toEqual({
+      id: "gid://shopify/Product/100",
+      tags: ["Preorder"],
+    });
   });
 
   it("requires both preorder message fields without calling Shopify", async () => {

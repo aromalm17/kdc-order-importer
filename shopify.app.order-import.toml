@@ -5,7 +5,7 @@ application_url = "https://kdc-order-importer-web.onrender.com"
 embedded = true
 
 [access_scopes]
-scopes = "read_products,read_customers,write_customers,read_orders,write_orders,write_order_edits,read_all_orders"
+scopes = "read_products,write_products,read_customers,write_customers,read_orders,write_orders,write_order_edits,read_all_orders"
 optional_scopes = []
 use_legacy_install_flow = false
 

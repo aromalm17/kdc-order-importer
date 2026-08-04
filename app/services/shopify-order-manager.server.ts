@@ -118,6 +118,9 @@ export type BulkPreorderVariant = {
   imageUrl?: string | null;
   orderCount: number;
   totalQuantity: number;
+  preorderEta?: string | null;
+  preorderPendingPrice?: string | null;
+  isTaggedPreorder: boolean;
   orders: BulkPreorderOrder[];
 };
 
@@ -312,7 +315,13 @@ const BULK_PREORDER_ORDERS_QUERY = `#graphql
               title
               sku
               image { url }
-              product { id title }
+              product {
+                id
+                title
+                tags
+                preorderEta: metafield(namespace: "custom", key: "preorder_eta") { value }
+                preorderPendingPrice: metafield(namespace: "custom", key: "preorder_pending_price") { value }
+              }
             }
           }
         }
@@ -465,7 +474,13 @@ export async function listBulkPreorderVariants(
                 title: string;
                 sku?: string | null;
                 image?: { url: string } | null;
-                product: { id: string; title: string };
+                product: {
+                  id: string;
+                  title: string;
+                  tags: string[];
+                  preorderEta?: { value: string } | null;
+                  preorderPendingPrice?: { value: string } | null;
+                };
               } | null;
             }>;
           };
@@ -489,19 +504,26 @@ export async function listBulkPreorderVariants(
         const current: Omit<
           BulkPreorderVariant,
           "orderCount" | "totalQuantity" | "variantIds"
-        > & { orderIds: Set<string>; variantIds: Set<string> } =
-          grouped.get(variant.product.id) ?? {
-            id: variant.product.id,
-            productId: variant.product.id,
-            title,
-            productTitle: variant.product.title,
-            variantTitle,
-            sku: variant.sku ?? null,
-            imageUrl: variant.image?.url ?? null,
-            orders: [] as BulkPreorderOrder[],
-            orderIds: new Set<string>(),
-            variantIds: new Set<string>(),
-          };
+        > & { orderIds: Set<string>; variantIds: Set<string> } = grouped.get(
+          variant.product.id,
+        ) ?? {
+          id: variant.product.id,
+          productId: variant.product.id,
+          title,
+          productTitle: variant.product.title,
+          variantTitle,
+          sku: variant.sku ?? null,
+          imageUrl: variant.image?.url ?? null,
+          preorderEta: variant.product.preorderEta?.value ?? null,
+          preorderPendingPrice:
+            variant.product.preorderPendingPrice?.value ?? null,
+          isTaggedPreorder: (variant.product.tags ?? []).some(
+            (tag) => tag.trim().toLowerCase() === "preorder",
+          ),
+          orders: [] as BulkPreorderOrder[],
+          orderIds: new Set<string>(),
+          variantIds: new Set<string>(),
+        };
         const existing = current.orders.find((item) => item.id === order.id);
         if (existing) {
           existing.quantity += line.currentQuantity;
@@ -1059,32 +1081,20 @@ async function syncOrderTag(
   );
 }
 
-function chunks<T>(items: T[], size: number) {
-  const result: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    result.push(items.slice(index, index + size));
-  }
-  return result;
-}
-
 export async function updateBulkPreorderMessages(
   admin: AdminApiContext,
-  orderIds: string[],
+  productId: string,
   input: { eta: string; pendingPrice: string },
 ) {
-  const uniqueOrderIds = [...new Set(orderIds)].filter((id) =>
-    id.startsWith("gid://shopify/Order/"),
-  );
-  if (!uniqueOrderIds.length) {
-    throw new Error("Select at least one matching order.");
+  if (!productId.startsWith("gid://shopify/Product/")) {
+    throw new Error("A valid Shopify Product ID is required.");
   }
   const { eta, pendingPriceText, pendingPrice } = normalizePreorderInput(input);
 
   if (!eta && !pendingPriceText) {
-    for (const batch of chunks(uniqueOrderIds, 100)) {
-      const response = await admin.graphql(
-        `#graphql
-          mutation KdcBulkClearPreorderMessages(
+    const response = await admin.graphql(
+      `#graphql
+          mutation KdcClearProductPreorder(
             $metafields: [MetafieldIdentifierInput!]!
           ) {
             metafieldsDelete(metafields: $metafields) {
@@ -1093,37 +1103,30 @@ export async function updateBulkPreorderMessages(
             }
           }
         `,
-        {
-          variables: {
-            metafields: batch.flatMap((ownerId) =>
-              PREORDER_METAFIELD_DEFINITIONS.map((definition) => ({
-                ownerId,
-                namespace: PREORDER_METAFIELD_NAMESPACE,
-                key: definition.key,
-              })),
-            ),
-          },
+      {
+        variables: {
+          metafields: PREORDER_METAFIELD_DEFINITIONS.map((definition) => ({
+            ownerId: productId,
+            namespace: PREORDER_METAFIELD_NAMESPACE,
+            key: definition.key,
+          })),
         },
-      );
-      const data = await readGraphql<{
-        metafieldsDelete: { userErrors: UserError[] };
-      }>(response as Response, "Clear bulk preorder messages");
-      assertNoUserErrors(
-        data.metafieldsDelete.userErrors,
-        "Clear bulk preorder messages",
-      );
-      for (const ownerId of batch) {
-        await syncOrderTag(admin, ownerId, "remove");
-      }
-    }
-    return uniqueOrderIds.length;
+      },
+    );
+    const data = await readGraphql<{
+      metafieldsDelete: { userErrors: UserError[] };
+    }>(response as Response, "Clear product preorder details");
+    assertNoUserErrors(
+      data.metafieldsDelete.userErrors,
+      "Clear product preorder details",
+    );
+    await syncOrderTag(admin, productId, "remove");
+    return 1;
   }
 
-  await ensurePreorderMetafieldDefinitions(admin);
-  for (const batch of chunks(uniqueOrderIds, 12)) {
-    const response = await admin.graphql(
-      `#graphql
-        mutation KdcBulkUpdatePreorderMessages(
+  const response = await admin.graphql(
+    `#graphql
+        mutation KdcUpdateProductPreorder(
           $metafields: [MetafieldsSetInput!]!
         ) {
           metafieldsSet(metafields: $metafields) {
@@ -1132,39 +1135,36 @@ export async function updateBulkPreorderMessages(
           }
         }
       `,
-      {
-        variables: {
-          metafields: batch.flatMap((ownerId) => [
-            {
-              ownerId,
-              namespace: PREORDER_METAFIELD_NAMESPACE,
-              key: "preorder_eta",
-              type: "single_line_text_field",
-              value: eta,
-            },
-            {
-              ownerId,
-              namespace: PREORDER_METAFIELD_NAMESPACE,
-              key: "preorder_pending_price",
-              type: "number_decimal",
-              value: pendingPrice!.toFixed(2),
-            },
-          ]),
-        },
+    {
+      variables: {
+        metafields: [
+          {
+            ownerId: productId,
+            namespace: PREORDER_METAFIELD_NAMESPACE,
+            key: "preorder_eta",
+            type: "single_line_text_field",
+            value: eta,
+          },
+          {
+            ownerId: productId,
+            namespace: PREORDER_METAFIELD_NAMESPACE,
+            key: "preorder_pending_price",
+            type: "number_decimal",
+            value: pendingPrice!.toFixed(2),
+          },
+        ],
       },
-    );
-    const data = await readGraphql<{
-      metafieldsSet: { userErrors: UserError[] };
-    }>(response as Response, "Update bulk preorder messages");
-    assertNoUserErrors(
-      data.metafieldsSet.userErrors,
-      "Update bulk preorder messages",
-    );
-    for (const ownerId of batch) {
-      await syncOrderTag(admin, ownerId, "add");
-    }
-  }
-  return uniqueOrderIds.length;
+    },
+  );
+  const data = await readGraphql<{
+    metafieldsSet: { userErrors: UserError[] };
+  }>(response as Response, "Update product preorder details");
+  assertNoUserErrors(
+    data.metafieldsSet.userErrors,
+    "Update product preorder details",
+  );
+  await syncOrderTag(admin, productId, "add");
+  return 1;
 }
 
 type CalculatedLine = {
@@ -1652,10 +1652,7 @@ export async function permanentlyDeleteManagedOrder(
   return deleteManagedOrderById(admin, input.orderId);
 }
 
-async function deleteManagedOrderById(
-  admin: AdminApiContext,
-  orderId: string,
-) {
+async function deleteManagedOrderById(admin: AdminApiContext, orderId: string) {
   const response = await admin.graphql(
     `#graphql
       mutation KdcManagedOrderDelete($orderId: ID!) {
