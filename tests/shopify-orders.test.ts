@@ -537,10 +537,53 @@ describe("Shopify order creation", () => {
         "https://cdn.shopify.com/s/files/1/black-side.jpg?v=3",
       ],
       hasUnreadyImage: false,
+      isPreorder: false,
     });
     const query = graphql.mock.calls[0][0] as string;
     expect(query).toContain("media(first: 50)");
+    expect(query).toContain("preorderEta: metafield");
+    expect(query).toContain("preorderPendingPrice: metafield");
     expect(query).not.toContain("featuredMedia");
+  });
+
+  it("marks a variant as preorder when the product metafields are present", async () => {
+    const graphql = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: {
+          nodes: [
+            {
+              id: "gid://shopify/ProductVariant/100",
+              title: "Black",
+              product: {
+                title: "Nissan Skyline R34",
+                preorderEta: { value: "September" },
+                preorderPendingPrice: { value: "2000" },
+              },
+              media: {
+                nodes: [
+                  {
+                    __typename: "MediaImage",
+                    status: "READY",
+                    image: {
+                      url: "https://cdn.shopify.com/s/files/1/black.jpg?v=2",
+                    },
+                  },
+                ],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          ],
+        },
+      }),
+    });
+
+    const variants = await verifyVariants({ graphql } as never, ["100"]);
+
+    expect(variants.get("100")).toMatchObject({
+      isPreorder: true,
+      preorderEta: "September",
+      preorderPendingPrice: "2000",
+    });
   });
 
   it("keeps an existing variant with no assigned image distinct from a missing variant", async () => {
@@ -566,6 +609,7 @@ describe("Shopify order creation", () => {
     const variants = await verifyVariants({ graphql } as never, ["100", "200"]);
 
     expect(variants.get("100")?.imageUrls).toEqual([]);
+    expect(variants.get("100")?.isPreorder).toBe(false);
     expect(variants.has("200")).toBe(false);
   });
 
@@ -621,6 +665,7 @@ describe("Shopify order creation", () => {
     const variants = await verifyVariants({ graphql } as never, ["100"]);
 
     expect(variants.get("100")?.imageUrls).toHaveLength(2);
+    expect(variants.get("100")?.isPreorder).toBe(false);
     expect(graphql).toHaveBeenCalledTimes(2);
     expect(graphql.mock.calls[1][1]).toEqual({
       variables: {

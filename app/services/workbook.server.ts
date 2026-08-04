@@ -73,6 +73,9 @@ export function applyVariantImageVerification(
     title: string;
     imageUrls: string[];
     hasUnreadyImage: boolean;
+    isPreorder: boolean;
+    preorderEta?: string;
+    preorderPendingPrice?: string;
   },
 ) {
   line.issues = line.issues.filter(
@@ -96,6 +99,9 @@ export function applyVariantImageVerification(
   }
 
   line.variantId = `gid://shopify/ProductVariant/${numericId}`;
+  line.isPreorder = verified.isPreorder;
+  line.preorderEta = verified.preorderEta;
+  line.preorderPendingPrice = verified.preorderPendingPrice;
   if (!verified.imageUrls.length) {
     line.issues.push({
       code: verified.hasUnreadyImage

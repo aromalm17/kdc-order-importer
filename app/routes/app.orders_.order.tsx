@@ -288,7 +288,7 @@ export default function ManagedOrderDetail() {
               <small>Change only this part of the customer message.</small>
             </label>
             <label>
-              Pending price ({currencyCode})
+              Preorder Price ({currencyCode})
               <input
                 className="kdc-text-input"
                 type="number"
@@ -298,7 +298,7 @@ export default function ManagedOrderDetail() {
                 defaultValue={order.preorderPendingPrice ?? ""}
                 placeholder="2100"
               />
-              <small>Change only the remaining amount.</small>
+              <small>Change only the remaining preorder amount.</small>
             </label>
           </div>
           <div className="kdc-preorder-message-preview">

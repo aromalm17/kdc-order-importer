@@ -355,6 +355,23 @@ export async function importReadyOrders(
           variantId: line.variantId ?? null,
           quantity: line.quantity,
           unitPrice: line.unitPrice,
+          properties: [
+            ...(line.isPreorder ? [{ name: "_preorder", value: "true" }] : []),
+            ...(line.preorderEta
+              ? [
+                  { name: "_preorder_eta", value: line.preorderEta },
+                  { name: "_preorder_eta_source", value: "product metafield" },
+                ]
+              : []),
+            ...(line.preorderPendingPrice
+              ? [
+                  {
+                    name: "_preorder_pending_price",
+                    value: line.preorderPendingPrice,
+                  },
+                ]
+              : []),
+          ],
         })),
       });
       job.pending = job.pending.filter((candidate) => candidate !== order);

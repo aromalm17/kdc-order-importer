@@ -460,7 +460,7 @@ describe("Shopify order manager", () => {
           pendingPrice: "",
         },
       ),
-    ).rejects.toThrow("Enter both the preorder ETA and pending price");
+    ).rejects.toThrow("Enter both the preorder ETA and Preorder Price");
 
     expect(graphql).not.toHaveBeenCalled();
   });

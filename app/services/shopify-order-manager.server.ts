@@ -765,7 +765,7 @@ const PREORDER_METAFIELD_DEFINITIONS = [
   },
   {
     key: "preorder_pending_price",
-    name: "Preorder pending price",
+    name: "Preorder Price",
     type: "number_decimal",
     description:
       "Remaining preorder amount the customer must pay before dispatch.",
@@ -1006,7 +1006,7 @@ function normalizePreorderInput(input: { eta: string; pendingPrice: string }) {
   }
   if (!eta || !pendingPriceText) {
     throw new Error(
-      "Enter both the preorder ETA and pending price, or clear both fields.",
+      "Enter both the preorder ETA and Preorder Price, or clear both fields.",
     );
   }
   if (eta.length > 120) {

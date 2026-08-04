@@ -417,10 +417,15 @@ export async function createHistoricalOrder(
           requiresShipping: true,
           ...(line.properties?.length || isTaggedPreorder
             ? {
-                properties: [
-                  ...(isTaggedPreorder ? [PREORDER_PROPERTY] : []),
-                  ...(line.properties ?? []),
-                ],
+                properties: [...new Map(
+                  [
+                    ...(isTaggedPreorder ? [PREORDER_PROPERTY] : []),
+                    ...(line.properties ?? []),
+                  ].map((property) => [
+                    property.name.trim().toLowerCase(),
+                    property,
+                  ]),
+                ).values()],
               }
             : {}),
           priceSet: {
@@ -476,7 +481,18 @@ export async function verifyVariants(
             ... on ProductVariant {
               id
               title
-              product { title }
+              product {
+                title
+                preorderEta: metafield(namespace: "custom", key: "preorder_eta") {
+                  value
+                }
+                preorderPendingPrice: metafield(
+                  namespace: "custom"
+                  key: "preorder_pending_price"
+                ) {
+                  value
+                }
+              }
               media(first: 50) {
                 nodes {
                   __typename
@@ -507,10 +523,16 @@ export async function verifyVariants(
     for (const node of json.data.nodes) {
       if (!node) continue;
       const numericId = node.id.replace("gid://shopify/ProductVariant/", "");
+      const productPreorderEta = node.product.preorderEta?.value?.trim() || "";
+      const productPreorderPendingPrice =
+        node.product.preorderPendingPrice?.value?.trim() || "";
       const value: VerifiedVariant = {
         title: `${node.product.title} — ${node.title}`,
         imageUrls: [],
         hasUnreadyImage: false,
+        isPreorder: Boolean(productPreorderEta && productPreorderPendingPrice),
+        preorderEta: productPreorderEta || undefined,
+        preorderPendingPrice: productPreorderPendingPrice || undefined,
       };
       appendVariantMedia(value, node.media.nodes);
       verified.set(numericId, value);
@@ -536,6 +558,9 @@ export type VerifiedVariant = {
   title: string;
   imageUrls: string[];
   hasUnreadyImage: boolean;
+  isPreorder: boolean;
+  preorderEta?: string;
+  preorderPendingPrice?: string;
 };
 
 type VariantMediaNode = {
@@ -558,7 +583,11 @@ type VariantNodesResponse = {
     nodes?: Array<{
       id: string;
       title: string;
-      product: { title: string };
+      product: {
+        title: string;
+        preorderEta?: { value?: string | null } | null;
+        preorderPendingPrice?: { value?: string | null } | null;
+      };
       media: VariantMediaConnection;
     } | null>;
   };

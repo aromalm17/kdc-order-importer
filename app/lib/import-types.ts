@@ -47,6 +47,9 @@ export type ParsedLineItem = {
   discountAmount?: number;
   imageUrl?: string;
   productUrl?: string;
+  isPreorder?: boolean;
+  preorderEta?: string;
+  preorderPendingPrice?: string;
   rawRow: Record<string, string>;
   issues: ValidationIssue[];
 };

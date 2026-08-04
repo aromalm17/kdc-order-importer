@@ -104,7 +104,7 @@ export default function BulkPreorderVariant() {
 
       <s-section heading="Bulk preorder customer message">
         <s-banner tone="info">
-          This writes the same ETA and pending price to every selected order
+          This writes the same ETA and preorder price to every selected order
           containing this exact product. Product data and order totals are not
           changed.
         </s-banner>
@@ -120,7 +120,7 @@ export default function BulkPreorderVariant() {
               />
             </label>
             <label>
-              Pending price (INR)
+              Preorder Price (INR)
               <input
                 className="kdc-text-input"
                 type="number"
@@ -161,7 +161,7 @@ export default function BulkPreorderVariant() {
                   <th>Customer</th>
                   <th>Qty</th>
                   <th>Current ETA</th>
-                  <th>Current pending price</th>
+                  <th>Current preorder price</th>
                 </tr>
               </thead>
               <tbody>
