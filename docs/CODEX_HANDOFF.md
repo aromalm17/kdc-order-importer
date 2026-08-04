@@ -9,9 +9,9 @@ default. A product is configured only when it has the `preorder`/`pre-order`
 tag and nonblank `custom.preorder_eta` and
 `custom.preorder_pending_price` product metafields.
 
-The same page includes a status filter with `Needs setup` (default),
-`Configured`, and `All products`. Search, clear-search, and refresh preserve the
-selected status. The table also displays each product's computed status.
+The same page includes status tabs for `Needs setup` (default), `Configured`,
+and `All products`. Search, clear-search, and refresh preserve the selected
+tab. The table also displays each product's computed status.
 
 Validation: 92 tests, typecheck, lint, production build, and diff check passed.
 

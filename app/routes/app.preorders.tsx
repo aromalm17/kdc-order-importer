@@ -44,6 +44,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const refreshParams = new URLSearchParams({ status, refresh: "1" });
   if (search) refreshParams.set("q", search);
   const clearParams = new URLSearchParams({ status });
+  const tabHref = (nextStatus: "needs-setup" | "configured" | "all") => {
+    const params = new URLSearchParams({ status: nextStatus });
+    if (search) params.set("q", search);
+    return `/app/preorders?${params.toString()}`;
+  };
 
   return {
     search,
@@ -53,6 +58,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
     needsSetupProducts: variants.length - configuredProducts,
     refreshHref: `/app/preorders?${refreshParams.toString()}`,
     clearHref: `/app/preorders?${clearParams.toString()}`,
+    tabs: [
+      {
+        status: "needs-setup",
+        label: "Needs setup",
+        count: variants.length - configuredProducts,
+        href: tabHref("needs-setup"),
+      },
+      {
+        status: "configured",
+        label: "Configured",
+        count: configuredProducts,
+        href: tabHref("configured"),
+      },
+      {
+        status: "all",
+        label: "All",
+        count: variants.length,
+        href: tabHref("all"),
+      },
+    ],
     variants: filtered.map((variant) => {
       const { orders, ...summary } = variant;
       return {
@@ -79,26 +104,12 @@ export default function BulkPreorders() {
           <div>
             <h2>Products across Shopify orders</h2>
             <p>
-              Products are grouped by product name and sorted by matching order
-              count, highest first. Orders inside each product are newest first.
+              Products with preorder tag, price, and ETA are hidden from Needs
+              setup and listed under Configured.
             </p>
           </div>
           <Form method="get" className="kdc-managed-search">
-            <label htmlFor="bulk-preorder-status">Preorder status</label>
-            <select
-              id="bulk-preorder-status"
-              className="kdc-text-input"
-              name="status"
-              defaultValue={data.status}
-            >
-              <option value="needs-setup">
-                Needs setup ({data.needsSetupProducts})
-              </option>
-              <option value="configured">
-                Configured ({data.configuredProducts})
-              </option>
-              <option value="all">All products ({data.totalProducts})</option>
-            </select>
+            <input type="hidden" name="status" value={data.status} />
             <label htmlFor="bulk-preorder-search">Product name or ID</label>
             <div>
               <input
@@ -120,6 +131,25 @@ export default function BulkPreorders() {
           </Form>
         </div>
       </s-section>
+
+      <div className="kdc-preorder-tabs" role="tablist" aria-label="Preorder status">
+        {data.tabs.map((tab) => (
+          <Link
+            key={tab.status}
+            className={
+              tab.status === data.status
+                ? "kdc-preorder-tab kdc-preorder-tab--active"
+                : "kdc-preorder-tab"
+            }
+            role="tab"
+            aria-selected={tab.status === data.status}
+            to={tab.href}
+          >
+            <span>{tab.label}</span>
+            <span className="kdc-preorder-tab__count">{tab.count}</span>
+          </Link>
+        ))}
+      </div>
 
       <s-section heading={`${data.variants.length} matching products`}>
         {data.variants.length ? (

@@ -283,6 +283,60 @@ body {
   white-space: nowrap;
 }
 
+.kdc-preorder-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 4px;
+  border: 1px solid #d4d4d4;
+  border-radius: 8px;
+  background: #f7f7f7;
+}
+
+.kdc-preorder-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  color: #303030;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.kdc-preorder-tab:hover {
+  background: #ebebeb;
+  text-decoration: none;
+}
+
+.kdc-preorder-tab--active {
+  color: #fff;
+  background: #303030;
+}
+
+.kdc-preorder-tab--active:hover {
+  background: #1a1a1a;
+}
+
+.kdc-preorder-tab__count {
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #303030;
+  background: #e3e3e3;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.kdc-preorder-tab--active .kdc-preorder-tab__count {
+  color: #303030;
+  background: #fff;
+}
+
 .kdc-managed-orders-table th,
 .kdc-managed-orders-table td {
   padding: 12px;
@@ -615,9 +669,14 @@ body {
 @media (max-width: 760px) {
   .kdc-managed-toolbar,
   .kdc-managed-search > div,
-  .kdc-managed-variant-search > div {
+  .kdc-managed-variant-search > div,
+  .kdc-preorder-tabs {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .kdc-preorder-tabs {
+    display: flex;
   }
 
   .kdc-managed-search,
