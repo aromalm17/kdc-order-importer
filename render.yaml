@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: kdc-order-importer-web
+    name: kdc-order-importer-web-v2
     runtime: docker
     plan: free
     healthCheckPath: /healthz
