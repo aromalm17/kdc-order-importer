@@ -434,6 +434,28 @@ describe("Shopify order manager", () => {
       )
       .mockResolvedValueOnce(
         response({
+          eta: {
+            key: "preorder_eta",
+            name: "Preorder ETA",
+            type: { name: "single_line_text_field" },
+            pinnedPosition: 1,
+          },
+          pendingPrice: {
+            key: "preorder_pending_price",
+            name: "Preorder Price",
+            type: { name: "number_decimal" },
+            pinnedPosition: 2,
+          },
+          closing: {
+            key: "preorder_closing",
+            name: "Preorder Closing",
+            type: { name: "single_line_text_field" },
+            pinnedPosition: 3,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
           metafieldsSet: { metafields: [], userErrors: [] },
         }),
       )
@@ -460,7 +482,7 @@ describe("Shopify order manager", () => {
     );
 
     expect(updated).toBe(1);
-    expect(graphql).toHaveBeenCalledTimes(5);
+    expect(graphql).toHaveBeenCalledTimes(6);
     expect(graphql.mock.calls[1][0]).toContain(
       "KdcRenameProductPreorderMetafieldDefinition",
     );
@@ -470,8 +492,8 @@ describe("Shopify order manager", () => {
       key: "preorder_pending_price",
       name: "Preorder Price",
     });
-    expect(graphql.mock.calls[2][1].variables.metafields).toHaveLength(2);
-    expect(graphql.mock.calls[2][1].variables.metafields).toEqual(
+    expect(graphql.mock.calls[3][1].variables.metafields).toHaveLength(2);
+    expect(graphql.mock.calls[3][1].variables.metafields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           ownerId: "gid://shopify/Product/100",
@@ -485,12 +507,12 @@ describe("Shopify order manager", () => {
         }),
       ]),
     );
-    expect(graphql.mock.calls[3][0]).toContain("tagsAdd");
-    expect(graphql.mock.calls[3][1].variables).toEqual({
+    expect(graphql.mock.calls[4][0]).toContain("tagsAdd");
+    expect(graphql.mock.calls[4][1].variables).toEqual({
       id: "gid://shopify/Product/100",
       tags: ["Preorder"],
     });
-    expect(graphql.mock.calls[4][0]).toContain("KdcVerifyProductPreorder");
+    expect(graphql.mock.calls[5][0]).toContain("KdcVerifyProductPreorder");
   });
 
   it("fails product preorder updates when Shopify does not persist the product fields", async () => {
@@ -502,16 +524,41 @@ describe("Shopify order manager", () => {
             key: "preorder_eta",
             name: "Preorder ETA",
             type: { name: "single_line_text_field" },
+            pinnedPosition: 1,
           },
           pendingPrice: {
             key: "preorder_pending_price",
             name: "Preorder Price",
             type: { name: "number_decimal" },
+            pinnedPosition: 2,
           },
           closing: {
             key: "preorder_closing",
             name: "Preorder Closing",
             type: { name: "single_line_text_field" },
+            pinnedPosition: 3,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          eta: {
+            key: "preorder_eta",
+            name: "Preorder ETA",
+            type: { name: "single_line_text_field" },
+            pinnedPosition: 1,
+          },
+          pendingPrice: {
+            key: "preorder_pending_price",
+            name: "Preorder Price",
+            type: { name: "number_decimal" },
+            pinnedPosition: 2,
+          },
+          closing: {
+            key: "preorder_closing",
+            name: "Preorder Closing",
+            type: { name: "single_line_text_field" },
+            pinnedPosition: 3,
           },
         }),
       )
@@ -581,11 +628,33 @@ describe("Shopify order manager", () => {
             userErrors: [],
           },
         }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          eta: {
+            key: "preorder_eta",
+            name: "Preorder ETA",
+            type: { name: "single_line_text_field" },
+            pinnedPosition: 1,
+          },
+          pendingPrice: {
+            key: "preorder_pending_price",
+            name: "Preorder Price",
+            type: { name: "number_decimal" },
+            pinnedPosition: 2,
+          },
+          closing: {
+            key: "preorder_closing",
+            name: "Preorder Closing",
+            type: { name: "single_line_text_field" },
+            pinnedPosition: 3,
+          },
+        }),
       );
 
     await ensureProductPreorderMetafieldDefinitions({ graphql } as never);
 
-    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(graphql).toHaveBeenCalledTimes(3);
     expect(graphql.mock.calls[1][0]).toContain(
       "KdcPinProductPreorderMetafieldDefinition",
     );

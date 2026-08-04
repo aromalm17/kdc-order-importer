@@ -807,6 +807,13 @@ const PRODUCT_PREORDER_METAFIELD_DEFINITIONS = [
   },
 ] as const;
 
+export type ProductPreorderMetafieldDefinitionStatus = {
+  key: string;
+  name: string;
+  type: string;
+  pinned: boolean;
+};
+
 async function ensurePreorderMetafieldDefinitions(admin: AdminApiContext) {
   const response = await admin.graphql(
     `#graphql
@@ -1003,7 +1010,7 @@ async function pinProductMetafieldDefinition(
 
 export async function ensureProductPreorderMetafieldDefinitions(
   admin: AdminApiContext,
-) {
+): Promise<ProductPreorderMetafieldDefinitionStatus[]> {
   const response = await admin.graphql(
     `#graphql
       query KdcProductPreorderMetafieldDefinitions {
@@ -1175,6 +1182,103 @@ export async function ensureProductPreorderMetafieldDefinitions(
       await pinProductMetafieldDefinition(admin, definition.key);
     }
   }
+  const verifyResponse = await admin.graphql(
+    `#graphql
+      query KdcVerifyProductPreorderMetafieldDefinitions {
+        eta: metafieldDefinition(
+          identifier: {
+            ownerType: PRODUCT
+            namespace: "custom"
+            key: "preorder_eta"
+          }
+        ) {
+          key
+          name
+          type { name }
+          pinnedPosition
+        }
+        pendingPrice: metafieldDefinition(
+          identifier: {
+            ownerType: PRODUCT
+            namespace: "custom"
+            key: "preorder_pending_price"
+          }
+        ) {
+          key
+          name
+          type { name }
+          pinnedPosition
+        }
+        closing: metafieldDefinition(
+          identifier: {
+            ownerType: PRODUCT
+            namespace: "custom"
+            key: "preorder_closing"
+          }
+        ) {
+          key
+          name
+          type { name }
+          pinnedPosition
+        }
+      }
+    `,
+  );
+  const verified = await readGraphql<{
+    eta?: {
+      key: string;
+      name: string;
+      type: { name: string };
+      pinnedPosition?: number | null;
+    } | null;
+    pendingPrice?: {
+      key: string;
+      name: string;
+      type: { name: string };
+      pinnedPosition?: number | null;
+    } | null;
+    closing?: {
+      key: string;
+      name: string;
+      type: { name: string };
+      pinnedPosition?: number | null;
+    } | null;
+  }>(verifyResponse as Response, "Verify product preorder field definitions");
+  const status = [verified.eta, verified.pendingPrice, verified.closing]
+    .filter(
+      (
+        definition,
+      ): definition is {
+        key: string;
+        name: string;
+        type: { name: string };
+        pinnedPosition?: number | null;
+      } => Boolean(definition),
+    )
+    .map((definition) => ({
+      key: definition.key,
+      name: definition.name,
+      type: definition.type.name,
+      pinned: definition.pinnedPosition != null,
+    }));
+  const missing = PRODUCT_PREORDER_METAFIELD_DEFINITIONS.filter(
+    (definition) =>
+      !status.some(
+        (item) =>
+          item.key === definition.key &&
+          item.name === definition.name &&
+          item.type === definition.type &&
+          item.pinned,
+      ),
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `Product metafield setup incomplete: ${missing
+        .map((definition) => `custom.${definition.key}`)
+        .join(", ")}.`,
+    );
+  }
+  return status;
 }
 
 export async function updateManagedOrderPreorder(
