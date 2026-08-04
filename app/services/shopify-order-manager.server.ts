@@ -955,6 +955,52 @@ async function ensurePreorderMetafieldDefinitions(admin: AdminApiContext) {
   }
 }
 
+async function pinProductMetafieldDefinition(
+  admin: AdminApiContext,
+  key: string,
+) {
+  const response = await admin.graphql(
+    `#graphql
+      mutation KdcPinProductPreorderMetafieldDefinition(
+        $identifier: MetafieldDefinitionIdentifierInput!
+      ) {
+        metafieldDefinitionPin(identifier: $identifier) {
+          pinnedDefinition { id key pinnedPosition }
+          userErrors { field message code }
+        }
+      }
+    `,
+    {
+      variables: {
+        identifier: {
+          ownerType: "PRODUCT",
+          namespace: PREORDER_METAFIELD_NAMESPACE,
+          key,
+        },
+      },
+    },
+  );
+  const data = await readGraphql<{
+    metafieldDefinitionPin: {
+      pinnedDefinition?: {
+        id: string;
+        key: string;
+        pinnedPosition?: number | null;
+      } | null;
+      userErrors: UserError[];
+    };
+  }>(response as Response, "Pin product preorder field definition");
+  assertNoUserErrors(
+    data.metafieldDefinitionPin.userErrors,
+    "Pin product preorder field definition",
+  );
+  if (!data.metafieldDefinitionPin.pinnedDefinition) {
+    throw new Error(
+      `Pin product preorder field definition: Shopify returned no definition for custom.${key}.`,
+    );
+  }
+}
+
 export async function ensureProductPreorderMetafieldDefinitions(
   admin: AdminApiContext,
 ) {
@@ -971,6 +1017,7 @@ export async function ensureProductPreorderMetafieldDefinitions(
           key
           name
           type { name }
+          pinnedPosition
         }
         pendingPrice: metafieldDefinition(
           identifier: {
@@ -982,6 +1029,7 @@ export async function ensureProductPreorderMetafieldDefinitions(
           key
           name
           type { name }
+          pinnedPosition
         }
         closing: metafieldDefinition(
           identifier: {
@@ -993,14 +1041,30 @@ export async function ensureProductPreorderMetafieldDefinitions(
           key
           name
           type { name }
+          pinnedPosition
         }
       }
     `,
   );
   const data = await readGraphql<{
-    eta?: { key: string; name: string; type: { name: string } } | null;
-    pendingPrice?: { key: string; name: string; type: { name: string } } | null;
-    closing?: { key: string; name: string; type: { name: string } } | null;
+    eta?: {
+      key: string;
+      name: string;
+      type: { name: string };
+      pinnedPosition?: number | null;
+    } | null;
+    pendingPrice?: {
+      key: string;
+      name: string;
+      type: { name: string };
+      pinnedPosition?: number | null;
+    } | null;
+    closing?: {
+      key: string;
+      name: string;
+      type: { name: string };
+      pinnedPosition?: number | null;
+    } | null;
   }>(response as Response, "Load product preorder field definitions");
   const current = new Map(
     [data.eta, data.pendingPrice, data.closing]
@@ -1011,6 +1075,7 @@ export async function ensureProductPreorderMetafieldDefinitions(
           key: string;
           name: string;
           type: { name: string };
+          pinnedPosition?: number | null;
         } => Boolean(definition),
       )
       .map((definition) => [definition.key, definition]),
@@ -1105,6 +1170,9 @@ export async function ensureProductPreorderMetafieldDefinitions(
         updateData.metafieldDefinitionUpdate.userErrors,
         "Rename product preorder field definition",
       );
+    }
+    if (existing.pinnedPosition === null) {
+      await pinProductMetafieldDefinition(admin, definition.key);
     }
   }
 }

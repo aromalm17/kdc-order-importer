@@ -31,6 +31,12 @@ Admin product create/edit does not show `Preorder Closing`; the action runs
 with the live shop's authenticated Admin API context and recreates/pins
 `Preorder Price`, `Preorder ETA`, and `Preorder Closing`.
 
+Follow-up: existing PRODUCT metafield definitions are now explicitly pinned
+with `metafieldDefinitionPin` when needed. This is required because Shopify
+Admin product create/edit automatically displays pinned definitions; an
+existing unpinned `custom.preorder_closing` definition can exist without
+appearing in the Product metafields panel.
+
 ## Product preorder closing metafield (2026-08-04)
 
 The app now ensures a product-level metafield definition:

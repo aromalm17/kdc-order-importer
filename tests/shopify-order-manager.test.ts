@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   editManagedOrderLine,
+  ensureProductPreorderMetafieldDefinitions,
   listBulkPreorderVariants,
   listManagedOrders,
   permanentlyDeleteManagedOrder,
@@ -542,6 +543,57 @@ describe("Shopify order manager", () => {
         { eta: "first week of August", pendingPrice: "2,000" },
       ),
     ).rejects.toThrow("tag/metafields were not saved");
+  });
+
+  it("pins existing unpinned product preorder definitions", async () => {
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          eta: {
+            key: "preorder_eta",
+            name: "Preorder ETA",
+            type: { name: "single_line_text_field" },
+            pinnedPosition: 1,
+          },
+          pendingPrice: {
+            key: "preorder_pending_price",
+            name: "Preorder Price",
+            type: { name: "number_decimal" },
+            pinnedPosition: 2,
+          },
+          closing: {
+            key: "preorder_closing",
+            name: "Preorder Closing",
+            type: { name: "single_line_text_field" },
+            pinnedPosition: null,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          metafieldDefinitionPin: {
+            pinnedDefinition: {
+              id: "gid://shopify/MetafieldDefinition/3",
+              key: "preorder_closing",
+              pinnedPosition: 3,
+            },
+            userErrors: [],
+          },
+        }),
+      );
+
+    await ensureProductPreorderMetafieldDefinitions({ graphql } as never);
+
+    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(graphql.mock.calls[1][0]).toContain(
+      "KdcPinProductPreorderMetafieldDefinition",
+    );
+    expect(graphql.mock.calls[1][1].variables.identifier).toEqual({
+      ownerType: "PRODUCT",
+      namespace: "custom",
+      key: "preorder_closing",
+    });
   });
 
   it("requires both preorder message fields without calling Shopify", async () => {
