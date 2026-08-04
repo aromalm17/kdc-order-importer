@@ -23,6 +23,10 @@ Validation: 92 tests, typecheck, lint, production build, diff check, and Theme
 Check completed. Theme Check reported only the documented pre-existing error
 and unrelated warnings.
 
+- Source/deployment commit: `bb94ae5`
+- Production health: HTTP 200 with `{"status":"ok"}` and `Cache-Control: no-store`
+- Live theme: `Kerala Diecast Cars Version 1.0.83`, ID `156621963454`
+
 ## Preorder metafield import and live deployment (2026-08-04)
 
 The importer now treats any product with both preorder metafields present as a
