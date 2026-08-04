@@ -37,6 +37,11 @@ Admin product create/edit automatically displays pinned definitions; an
 existing unpinned `custom.preorder_closing` definition can exist without
 appearing in the Product metafields panel.
 
+Follow-up: Render v2 was manually deployed to commit `b4385cd` after verifying
+that the service was still live on older commit `80bcc5e`. Render deploy
+`dep-d9p137b7uimc73acmrsg` is live on `kdc-order-importer-web-v2`, and the
+live Dashboard asset contains the `Product metafields:` setup-status text.
+
 ## Product preorder closing metafield (2026-08-04)
 
 The app now ensures a product-level metafield definition:
