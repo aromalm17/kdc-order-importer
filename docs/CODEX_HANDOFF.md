@@ -25,6 +25,12 @@ creates/pins `Preorder Closing` even before the merchant navigates to Bulk
 Preorders. Commit `66c7767` was pushed to `deploy/main`; validation again
 passed tests, typecheck, lint, build, Prettier check, and diff check.
 
+Follow-up: the dashboard now has an explicit `Ensure product metafields`
+action in System status. Use it from the embedded Order Import app if Shopify
+Admin product create/edit does not show `Preorder Closing`; the action runs
+with the live shop's authenticated Admin API context and recreates/pins
+`Preorder Price`, `Preorder ETA`, and `Preorder Closing`.
+
 ## Product preorder closing metafield (2026-08-04)
 
 The app now ensures a product-level metafield definition:
@@ -342,8 +348,7 @@ startup command, and local `/healthz` HTTP 200 verification.
 
 - Final Render deploy: `dep-d9nl3mm417fc73djui60`
 - Render service health-check path: `/healthz`
-- Production verification: `/healthz`, `/auth/login`, and `/` returned HTTP
-  200. Post-deploy logs show the recurring health probe using `/healthz`
+- Production verification: `/healthz`, `/auth/login`, and `/` returned HTTP 200. Post-deploy logs show the recurring health probe using `/healthz`
   instead of `/auth/login`, with responses around 1–3 ms.
 - The deployment cleared temporary in-memory workbook/job data as expected.
 
@@ -394,8 +399,7 @@ This shared Dashboard uploader was deployed on 2026-07-30:
 - Render deploy: `dep-d9l6arrl550s73fljqqg`
 - Validation: 62 tests, typecheck, lint, production build, formatting, and
   `git diff --check` passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 
 Customer profile lookups for the pending list and detail page are batched and
 cached on the in-memory import job. Moving between the pending list and an
@@ -470,8 +474,7 @@ This feature was deployed successfully on 2026-07-30:
 - Render deploy: `dep-d9l4qrdbedkc73brsu70`
 - Validation: 54 tests, typecheck, lint, production build, and Shopify
   `2026-07` GraphQL code generation passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200. An unauthenticated `/app/orders` request returns Shopify's expected 410
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200. An unauthenticated `/app/orders` request returns Shopify's expected 410
   because embedded app authentication is required.
 - No production order was edited or deleted during verification.
 
@@ -482,8 +485,7 @@ The simplified Shopify Orders status table was deployed on 2026-07-30:
 - Validation: 61 tests, typecheck, lint, production build, formatting,
   Shopify Admin GraphQL `2026-07` code generation, and `git diff --check`
   passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 
 ## Import and validation rules
 
@@ -535,8 +537,7 @@ The single-tag rule was deployed on 2026-07-30:
 - Render deploy: `dep-d9l5eg8ae00c738fil4g`
 - Validation: 57 tests, typecheck, lint, production build, and
   `git diff --check` passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 - Existing Shopify orders are not retroactively retagged.
 
 ## Imported line-item prices
@@ -556,8 +557,7 @@ This behavior was deployed on 2026-07-30:
 - Render deploy: `dep-d9l5go3l550s73fkh1b0`
 - Validation: 59 tests, typecheck, lint, production build, Shopify `2026-07`
   GraphQL code generation, and `git diff --check` passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 - The change applies to newly imported orders and does not recalculate existing
   Shopify orders.
 
@@ -570,8 +570,7 @@ order's shipping address is completed and deployed:
 - Render deploy: `dep-d9l56f5aeets73agudu0`
 - Validation: 55 tests, typecheck, lint, production build, and Shopify
   `2026-07` GraphQL code generation passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 
 `findCustomerProfilesByEmail` now retains both the formatted address used by
 the preview UI and a structured `defaultShippingAddress`.
@@ -593,8 +592,7 @@ old product remained visible is fixed and deployed:
 - Render deploy: `dep-d9l5bhe417fc73d68rhg`
 - Validation: 56 tests, typecheck, lint, production build, Shopify `2026-07`
   GraphQL code generation, and `git diff --check` passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 
 Shopify permits an order edit to replace or remove only a fully unfulfilled
 line. A fulfilled or partially fulfilled line remains part of the order and
@@ -667,7 +665,7 @@ static extension that renders once after the Items list:
   `custom.preorder_pending_price` through `shopify.appMetafields`.
 - It renders nothing unless both fields have values. When both exist it shows
   the fixed sentence `Arriving {ETA}. Pay the remaining {amount} before
-  dispatch.`
+dispatch.`
 - This must remain a separate UI extension from `kdc-account`, because Shopify
   does not permit `customer-account.page.render` to be combined with any other
   target in one extension package.
@@ -714,8 +712,7 @@ merchant-owned Admin default, and set only `customerAccount: READ`:
 - Render deploy: `dep-d9l6nspt0dsc73fsu950`
 - Validation: 62 tests, typecheck, lint, production build, formatting, and
   `git diff --check` passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 
 The Pending Orders status card now has a **Clear current import** action:
 
@@ -729,8 +726,7 @@ The Pending Orders status card now has a **Clear current import** action:
 - Render deploy: `dep-d9lbfju7bikc738ocqhg`
 - Validation: 63 tests, typecheck, lint, production build, formatting, and
   `git diff --check` passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 
 The **Download pending Excel** export now contains only not-ready/blocked
 orders. Ready orders remain visible and selectable in the pending screen but
@@ -740,8 +736,7 @@ are excluded from both the Excel and legacy CSV pending-export generators:
 - Render deploy: `dep-d9lcdaid0e5s73c8dnp0`
 - Validation: 64 tests, typecheck, lint, production build, formatting, and
   `git diff --check` passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 
 The Pending Orders status card now includes a bulk fulfillment-status editor:
 
@@ -763,8 +758,7 @@ The Pending Orders status card now includes a bulk fulfillment-status editor:
 - Validation: 65 tests, typecheck, lint, production build, formatting,
   Shopify Admin GraphQL API `2026-07` code generation, and `git diff --check`
   passed.
-- Production verification: normal `GET /auth/login` and `GET /` returned HTTP
-  200.
+- Production verification: normal `GET /auth/login` and `GET /` returned HTTP 200.
 
 ## Important source locations
 
