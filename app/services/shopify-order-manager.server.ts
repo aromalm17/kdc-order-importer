@@ -942,6 +942,148 @@ async function ensurePreorderMetafieldDefinitions(admin: AdminApiContext) {
   }
 }
 
+export async function ensureProductPreorderMetafieldDefinitions(
+  admin: AdminApiContext,
+) {
+  const response = await admin.graphql(
+    `#graphql
+      query KdcProductPreorderMetafieldDefinitions {
+        eta: metafieldDefinition(
+          identifier: {
+            ownerType: PRODUCT
+            namespace: "custom"
+            key: "preorder_eta"
+          }
+        ) {
+          key
+          name
+          type { name }
+        }
+        pendingPrice: metafieldDefinition(
+          identifier: {
+            ownerType: PRODUCT
+            namespace: "custom"
+            key: "preorder_pending_price"
+          }
+        ) {
+          key
+          name
+          type { name }
+        }
+      }
+    `,
+  );
+  const data = await readGraphql<{
+    eta?: { key: string; name: string; type: { name: string } } | null;
+    pendingPrice?: { key: string; name: string; type: { name: string } } | null;
+  }>(response as Response, "Load product preorder field definitions");
+  const current = new Map(
+    [data.eta, data.pendingPrice]
+      .filter(
+        (
+          definition,
+        ): definition is {
+          key: string;
+          name: string;
+          type: { name: string };
+        } => Boolean(definition),
+      )
+      .map((definition) => [definition.key, definition]),
+  );
+
+  for (const definition of PREORDER_METAFIELD_DEFINITIONS) {
+    const existing = current.get(definition.key);
+    if (existing && existing.type.name !== definition.type) {
+      throw new Error(
+        `Product metafield custom.${definition.key} must use type ${definition.type}.`,
+      );
+    }
+    if (!existing) {
+      const createResponse = await admin.graphql(
+        `#graphql
+          mutation KdcCreateProductPreorderMetafieldDefinition(
+            $definition: MetafieldDefinitionInput!
+          ) {
+            metafieldDefinitionCreate(definition: $definition) {
+              createdDefinition { id key name }
+              userErrors { field message code }
+            }
+          }
+        `,
+        {
+          variables: {
+            definition: {
+              ownerType: "PRODUCT",
+              namespace: PREORDER_METAFIELD_NAMESPACE,
+              key: definition.key,
+              name: definition.name,
+              description: definition.description,
+              type: definition.type,
+              pin: true,
+            },
+          },
+        },
+      );
+      const createData = await readGraphql<{
+        metafieldDefinitionCreate: {
+          createdDefinition?: { id: string; key: string; name: string } | null;
+          userErrors: UserError[];
+        };
+      }>(
+        createResponse as Response,
+        "Create product preorder field definition",
+      );
+      assertNoUserErrors(
+        createData.metafieldDefinitionCreate.userErrors,
+        "Create product preorder field definition",
+      );
+      if (!createData.metafieldDefinitionCreate.createdDefinition) {
+        throw new Error(
+          "Create product preorder field definition: Shopify returned no definition.",
+        );
+      }
+      continue;
+    }
+    if (existing.name !== definition.name) {
+      const updateResponse = await admin.graphql(
+        `#graphql
+          mutation KdcRenameProductPreorderMetafieldDefinition(
+            $definition: MetafieldDefinitionUpdateInput!
+          ) {
+            metafieldDefinitionUpdate(definition: $definition) {
+              updatedDefinition { id key name }
+              userErrors { field message code }
+            }
+          }
+        `,
+        {
+          variables: {
+            definition: {
+              ownerType: "PRODUCT",
+              namespace: PREORDER_METAFIELD_NAMESPACE,
+              key: definition.key,
+              name: definition.name,
+            },
+          },
+        },
+      );
+      const updateData = await readGraphql<{
+        metafieldDefinitionUpdate: {
+          updatedDefinition?: { id: string; key: string; name: string } | null;
+          userErrors: UserError[];
+        };
+      }>(
+        updateResponse as Response,
+        "Rename product preorder field definition",
+      );
+      assertNoUserErrors(
+        updateData.metafieldDefinitionUpdate.userErrors,
+        "Rename product preorder field definition",
+      );
+    }
+  }
+}
+
 export async function updateManagedOrderPreorder(
   admin: AdminApiContext,
   orderId: string,
@@ -1177,6 +1319,7 @@ export async function updateBulkPreorderMessages(
     return 1;
   }
 
+  await ensureProductPreorderMetafieldDefinitions(admin);
   const response = await admin.graphql(
     `#graphql
         mutation KdcUpdateProductPreorder(

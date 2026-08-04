@@ -398,26 +398,54 @@ describe("Shopify order manager", () => {
   });
 
   it("updates preorder metadata and tag on the ordered product", async () => {
-    const graphql = vi.fn().mockResolvedValueOnce(
-      response({
-        metafieldsSet: { metafields: [], userErrors: [] },
-      }),
-    );
-    graphql.mockResolvedValueOnce(
-      response({
-        tagsAdd: { userErrors: [] },
-      }),
-    );
-    graphql.mockResolvedValueOnce(
-      response({
-        product: {
-          id: "gid://shopify/Product/100",
-          tags: ["Preorder"],
-          preorderEta: { value: "first week of August" },
-          preorderPendingPrice: { value: "2000.00" },
-        },
-      }),
-    );
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          eta: {
+            key: "preorder_eta",
+            name: "Preorder ETA",
+            type: { name: "single_line_text_field" },
+          },
+          pendingPrice: {
+            key: "preorder_pending_price",
+            name: "Preorder pending price",
+            type: { name: "number_decimal" },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          metafieldDefinitionUpdate: {
+            updatedDefinition: {
+              id: "gid://shopify/MetafieldDefinition/2",
+              key: "preorder_pending_price",
+              name: "Preorder Price",
+            },
+            userErrors: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          metafieldsSet: { metafields: [], userErrors: [] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          tagsAdd: { userErrors: [] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          product: {
+            id: "gid://shopify/Product/100",
+            tags: ["Preorder"],
+            preorderEta: { value: "first week of August" },
+            preorderPendingPrice: { value: "2000.00" },
+          },
+        }),
+      );
 
     const updated = await updateBulkPreorderMessages(
       { graphql } as never,
@@ -426,9 +454,18 @@ describe("Shopify order manager", () => {
     );
 
     expect(updated).toBe(1);
-    expect(graphql).toHaveBeenCalledTimes(3);
-    expect(graphql.mock.calls[0][1].variables.metafields).toHaveLength(2);
-    expect(graphql.mock.calls[0][1].variables.metafields).toEqual(
+    expect(graphql).toHaveBeenCalledTimes(5);
+    expect(graphql.mock.calls[1][0]).toContain(
+      "KdcRenameProductPreorderMetafieldDefinition",
+    );
+    expect(graphql.mock.calls[1][1].variables.definition).toMatchObject({
+      ownerType: "PRODUCT",
+      namespace: "custom",
+      key: "preorder_pending_price",
+      name: "Preorder Price",
+    });
+    expect(graphql.mock.calls[2][1].variables.metafields).toHaveLength(2);
+    expect(graphql.mock.calls[2][1].variables.metafields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           ownerId: "gid://shopify/Product/100",
@@ -442,17 +479,31 @@ describe("Shopify order manager", () => {
         }),
       ]),
     );
-    expect(graphql.mock.calls[1][0]).toContain("tagsAdd");
-    expect(graphql.mock.calls[1][1].variables).toEqual({
+    expect(graphql.mock.calls[3][0]).toContain("tagsAdd");
+    expect(graphql.mock.calls[3][1].variables).toEqual({
       id: "gid://shopify/Product/100",
       tags: ["Preorder"],
     });
-    expect(graphql.mock.calls[2][0]).toContain("KdcVerifyProductPreorder");
+    expect(graphql.mock.calls[4][0]).toContain("KdcVerifyProductPreorder");
   });
 
   it("fails product preorder updates when Shopify does not persist the product fields", async () => {
     const graphql = vi
       .fn()
+      .mockResolvedValueOnce(
+        response({
+          eta: {
+            key: "preorder_eta",
+            name: "Preorder ETA",
+            type: { name: "single_line_text_field" },
+          },
+          pendingPrice: {
+            key: "preorder_pending_price",
+            name: "Preorder Price",
+            type: { name: "number_decimal" },
+          },
+        }),
+      )
       .mockResolvedValueOnce(
         response({
           metafieldsSet: { metafields: [], userErrors: [] },

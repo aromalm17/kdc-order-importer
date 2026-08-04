@@ -9,6 +9,7 @@ import {
 } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
+  ensureProductPreorderMetafieldDefinitions,
   invalidateBulkPreorderCache,
   listBulkPreorderVariants,
   updateBulkPreorderMessages,
@@ -31,6 +32,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const { admin, session } = await authenticate.admin(request);
   const productId = requiredProductId(request);
   const variants = await listBulkPreorderVariants(admin, session.shop);
+  await ensureProductPreorderMetafieldDefinitions(admin);
   const variant = variants.find(
     (item) => item.id === productId || item.variantIds.includes(productId),
   );
@@ -59,6 +61,7 @@ export async function action({ request }: ActionFunctionArgs) {
         { status: 404 },
       );
     }
+    await ensureProductPreorderMetafieldDefinitions(admin);
     const updated = await updateBulkPreorderMessages(admin, variant.productId, {
       eta: String(form.get("preorderEta") ?? ""),
       pendingPrice: String(form.get("preorderPendingPrice") ?? ""),

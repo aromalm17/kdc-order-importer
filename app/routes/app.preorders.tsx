@@ -1,7 +1,10 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { Form, Link, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { listBulkPreorderVariants } from "../services/shopify-order-manager.server";
+import {
+  ensureProductPreorderMetafieldDefinitions,
+  listBulkPreorderVariants,
+} from "../services/shopify-order-manager.server";
 
 function numericId(value: string) {
   return value.split("/").at(-1) ?? value;
@@ -19,6 +22,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const variants = await listBulkPreorderVariants(admin, session.shop, {
     refresh: url.searchParams.get("refresh") === "1",
   });
+  await ensureProductPreorderMetafieldDefinitions(admin);
   const needle = search.toLowerCase();
   const productIsConfigured = (variant: (typeof variants)[number]) =>
     variant.isTaggedPreorder &&

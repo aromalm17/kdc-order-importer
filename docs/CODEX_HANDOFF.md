@@ -2,6 +2,19 @@
 
 Last refreshed: 2026-08-04
 
+## Product preorder metafield label fix (2026-08-04)
+
+The product metafield key remains `custom.preorder_pending_price` for backward
+compatibility with existing products, line-item properties, imports, and theme
+rendering. Only the visible Shopify Admin definition name should be
+`Preorder Price`.
+
+The app now ensures product-level preorder metafield definitions when the Bulk
+Preorders page/editor loads and before product preorder saves. If Shopify has
+an existing PRODUCT metafield definition named `Preorder pending price`, the app
+renames that definition to `Preorder Price`. Existing product values are not
+migrated because they already use the correct key.
+
 ## Product preorder write-scope fix (2026-08-04)
 
 The product preorder save path requires `write_products`. The Shopify app TOML
