@@ -2,6 +2,23 @@
 
 Last refreshed: 2026-08-04
 
+## Bulk preorder closing field deployment (2026-08-04)
+
+The Bulk Preorders product editor now includes an optional `Preorder Closing`
+text input alongside `Arrival ETA` and `Preorder Price`. The field writes to
+the existing product metafield `custom.preorder_closing` with type
+`single_line_text_field`; the storefront preorder product template uses this
+same value for the `Pre-orders close ...` line.
+
+Saving ETA and price remains mandatory for configuring a preorder product.
+`Preorder Closing` is optional. Clearing all three fields removes the product
+preorder metafields and the `Preorder` product tag.
+
+Validation passed: 93 tests, typecheck, lint, production build, Prettier check,
+and diff check. Commit `20084d9` was pushed to `deploy/main`. Production
+`/healthz` returned HTTP 200 with `{"status":"ok"}` and `Cache-Control:
+no-store`.
+
 ## Product preorder closing metafield (2026-08-04)
 
 The app now ensures a product-level metafield definition:
