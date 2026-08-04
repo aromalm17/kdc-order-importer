@@ -793,6 +793,16 @@ const PREORDER_METAFIELD_DEFINITIONS = [
       "Remaining preorder amount the customer must pay before dispatch.",
   },
 ] as const;
+const PRODUCT_PREORDER_METAFIELD_DEFINITIONS = [
+  ...PREORDER_METAFIELD_DEFINITIONS,
+  {
+    key: "preorder_closing",
+    name: "Preorder Closing",
+    type: "single_line_text_field",
+    description:
+      "Date/time or note showing when preorder reservations close.",
+  },
+] as const;
 
 async function ensurePreorderMetafieldDefinitions(admin: AdminApiContext) {
   const response = await admin.graphql(
@@ -970,15 +980,27 @@ export async function ensureProductPreorderMetafieldDefinitions(
           name
           type { name }
         }
+        closing: metafieldDefinition(
+          identifier: {
+            ownerType: PRODUCT
+            namespace: "custom"
+            key: "preorder_closing"
+          }
+        ) {
+          key
+          name
+          type { name }
+        }
       }
     `,
   );
   const data = await readGraphql<{
     eta?: { key: string; name: string; type: { name: string } } | null;
     pendingPrice?: { key: string; name: string; type: { name: string } } | null;
+    closing?: { key: string; name: string; type: { name: string } } | null;
   }>(response as Response, "Load product preorder field definitions");
   const current = new Map(
-    [data.eta, data.pendingPrice]
+    [data.eta, data.pendingPrice, data.closing]
       .filter(
         (
           definition,
@@ -991,7 +1013,7 @@ export async function ensureProductPreorderMetafieldDefinitions(
       .map((definition) => [definition.key, definition]),
   );
 
-  for (const definition of PREORDER_METAFIELD_DEFINITIONS) {
+  for (const definition of PRODUCT_PREORDER_METAFIELD_DEFINITIONS) {
     const existing = current.get(definition.key);
     if (existing && existing.type.name !== definition.type) {
       throw new Error(

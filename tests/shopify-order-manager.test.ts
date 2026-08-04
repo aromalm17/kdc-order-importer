@@ -412,6 +412,11 @@ describe("Shopify order manager", () => {
             name: "Preorder pending price",
             type: { name: "number_decimal" },
           },
+          closing: {
+            key: "preorder_closing",
+            name: "Preorder Closing",
+            type: { name: "single_line_text_field" },
+          },
         }),
       )
       .mockResolvedValueOnce(
@@ -501,6 +506,11 @@ describe("Shopify order manager", () => {
             key: "preorder_pending_price",
             name: "Preorder Price",
             type: { name: "number_decimal" },
+          },
+          closing: {
+            key: "preorder_closing",
+            name: "Preorder Closing",
+            type: { name: "single_line_text_field" },
           },
         }),
       )

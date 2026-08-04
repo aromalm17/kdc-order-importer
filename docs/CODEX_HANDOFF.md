@@ -2,6 +2,19 @@
 
 Last refreshed: 2026-08-04
 
+## Product preorder closing metafield (2026-08-04)
+
+The app now ensures a product-level metafield definition:
+
+- `custom.preorder_closing`
+- Admin label: `Preorder Closing`
+- Type: `single_line_text_field`
+
+This definition is PRODUCT-only. It is not included in the order preorder
+metafield set, because historical order/customer-account logic still depends
+only on ETA and price. The live theme preorder product template reads this
+field and displays `Pre-orders close {value}` only on preorder product pages.
+
 ## Product preorder metafield label fix (2026-08-04)
 
 The product metafield key remains `custom.preorder_pending_price` for backward
