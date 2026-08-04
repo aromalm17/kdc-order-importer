@@ -19,6 +19,13 @@ After deploy, the merchant may need to reopen/re-authorize the embedded app so
 Shopify grants the newly requested `write_products` permission to the live
 session/token.
 
+Render has two order-importer services. The active service in the dashboard is
+`kdc-order-importer-web-v2` (`srv-d9nmjgvqj5pc73f7fef0`), and it was manually
+deployed to commit `cfb6b02` with deploy `dep-d9oqbimgekts73ejshfg`. The older
+`kdc-order-importer-web` service was also deployed to the same commit, but do
+not treat it as proof that the embedded app is current if Shopify/Admin is
+using v2. `shopify.app.order-import.toml` now points to the v2 URL.
+
 ## Bulk preorder status filter (2026-08-04)
 
 The Bulk Preorders product list now hides fully configured preorder products by
