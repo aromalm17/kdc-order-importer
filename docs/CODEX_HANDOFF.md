@@ -19,6 +19,12 @@ and diff check. Commit `20084d9` was pushed to `deploy/main`. Production
 `/healthz` returned HTTP 200 with `{"status":"ok"}` and `Cache-Control:
 no-store`.
 
+Follow-up: the authenticated app shell now also calls
+`ensureProductPreorderMetafieldDefinitions`, so opening the Order Import app
+creates/pins `Preorder Closing` even before the merchant navigates to Bulk
+Preorders. Commit `66c7767` was pushed to `deploy/main`; validation again
+passed tests, typecheck, lint, build, Prettier check, and diff check.
+
 ## Product preorder closing metafield (2026-08-04)
 
 The app now ensures a product-level metafield definition:
