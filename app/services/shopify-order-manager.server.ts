@@ -1081,6 +1081,59 @@ async function syncOrderTag(
   );
 }
 
+async function verifyProductPreorderDetails(
+  admin: AdminApiContext,
+  productId: string,
+  expected: { eta: string; pendingPrice: number },
+) {
+  const response = await admin.graphql(
+    `#graphql
+      query KdcVerifyProductPreorder($id: ID!) {
+        product(id: $id) {
+          id
+          tags
+          preorderEta: metafield(namespace: "custom", key: "preorder_eta") {
+            value
+          }
+          preorderPendingPrice: metafield(
+            namespace: "custom"
+            key: "preorder_pending_price"
+          ) {
+            value
+          }
+        }
+      }
+    `,
+    { variables: { id: productId } },
+  );
+  const data = await readGraphql<{
+    product?: {
+      tags: string[];
+      preorderEta?: { value: string } | null;
+      preorderPendingPrice?: { value: string } | null;
+    } | null;
+  }>(response as Response, "Verify product preorder details");
+  const product = data.product;
+  if (!product) {
+    throw new Error("Verify product preorder details: Shopify returned no product.");
+  }
+  const hasPreorderTag = product.tags.some(
+    (tag) => tag.trim().toLowerCase() === "preorder",
+  );
+  const savedEta = product.preorderEta?.value?.trim() ?? "";
+  const savedPendingPrice = Number(product.preorderPendingPrice?.value ?? "");
+  if (
+    !hasPreorderTag ||
+    savedEta !== expected.eta ||
+    !Number.isFinite(savedPendingPrice) ||
+    savedPendingPrice !== expected.pendingPrice
+  ) {
+    throw new Error(
+      "Shopify accepted the save request, but the product preorder tag/metafields were not saved. Re-open the app to approve the write_products permission, then try again.",
+    );
+  }
+}
+
 export async function updateBulkPreorderMessages(
   admin: AdminApiContext,
   productId: string,
@@ -1164,6 +1217,10 @@ export async function updateBulkPreorderMessages(
     "Update product preorder details",
   );
   await syncOrderTag(admin, productId, "add");
+  await verifyProductPreorderDetails(admin, productId, {
+    eta,
+    pendingPrice: pendingPrice!,
+  });
   return 1;
 }
 

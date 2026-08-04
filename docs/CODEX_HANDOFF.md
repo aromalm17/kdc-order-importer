@@ -2,6 +2,23 @@
 
 Last refreshed: 2026-08-04
 
+## Product preorder write-scope fix (2026-08-04)
+
+The product preorder save path requires `write_products`. The Shopify app TOML
+already had that scope, but `render.yaml` still set production `SCOPES`
+without it. Production therefore could load products but not reliably persist
+product preorder tags/metafields. `render.yaml` now includes `write_products`.
+
+`updateBulkPreorderMessages` also verifies the saved Shopify product after
+calling `metafieldsSet` and `tagsAdd`. If the product does not come back with
+the `Preorder` tag plus `custom.preorder_eta` and
+`custom.preorder_pending_price`, the app surfaces a permission-oriented error
+instead of reporting a misleading success.
+
+After deploy, the merchant may need to reopen/re-authorize the embedded app so
+Shopify grants the newly requested `write_products` permission to the live
+session/token.
+
 ## Bulk preorder status filter (2026-08-04)
 
 The Bulk Preorders product list now hides fully configured preorder products by

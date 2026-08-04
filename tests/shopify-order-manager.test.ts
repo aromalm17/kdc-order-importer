@@ -408,6 +408,16 @@ describe("Shopify order manager", () => {
         tagsAdd: { userErrors: [] },
       }),
     );
+    graphql.mockResolvedValueOnce(
+      response({
+        product: {
+          id: "gid://shopify/Product/100",
+          tags: ["Preorder"],
+          preorderEta: { value: "first week of August" },
+          preorderPendingPrice: { value: "2000.00" },
+        },
+      }),
+    );
 
     const updated = await updateBulkPreorderMessages(
       { graphql } as never,
@@ -416,7 +426,7 @@ describe("Shopify order manager", () => {
     );
 
     expect(updated).toBe(1);
-    expect(graphql).toHaveBeenCalledTimes(2);
+    expect(graphql).toHaveBeenCalledTimes(3);
     expect(graphql.mock.calls[0][1].variables.metafields).toHaveLength(2);
     expect(graphql.mock.calls[0][1].variables.metafields).toEqual(
       expect.arrayContaining([
@@ -437,6 +447,40 @@ describe("Shopify order manager", () => {
       id: "gid://shopify/Product/100",
       tags: ["Preorder"],
     });
+    expect(graphql.mock.calls[2][0]).toContain("KdcVerifyProductPreorder");
+  });
+
+  it("fails product preorder updates when Shopify does not persist the product fields", async () => {
+    const graphql = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({
+          metafieldsSet: { metafields: [], userErrors: [] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          tagsAdd: { userErrors: [] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        response({
+          product: {
+            id: "gid://shopify/Product/100",
+            tags: [],
+            preorderEta: null,
+            preorderPendingPrice: null,
+          },
+        }),
+      );
+
+    await expect(
+      updateBulkPreorderMessages(
+        { graphql } as never,
+        "gid://shopify/Product/100",
+        { eta: "first week of August", pendingPrice: "2,000" },
+      ),
+    ).rejects.toThrow("tag/metafields were not saved");
   });
 
   it("requires both preorder message fields without calling Shopify", async () => {
