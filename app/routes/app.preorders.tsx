@@ -24,9 +24,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     refresh: shouldRefresh,
     cacheOnly: !shouldRefresh,
   });
-  if (shouldRefresh) {
-    await ensureProductPreorderMetafieldDefinitions(admin);
-  }
+  await ensureProductPreorderMetafieldDefinitions(admin);
   const needle = search.toLowerCase();
   const productIsConfigured = (variant: (typeof variants)[number]) =>
     variant.isTaggedPreorder &&
