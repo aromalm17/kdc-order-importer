@@ -33,11 +33,6 @@ explicit `refresh=1` flow. Manual actions remain:
 Validation repeated: full `npm test` (96 tests), `npm run typecheck`, and
 `npm run build` passed.
 
-Follow-up: the `/app/preorders` primary button now clears browser
-`localStorage` and `sessionStorage` before navigating to the `refresh=1` URL.
-This removes stale client-side data in the merchant's browser before fetching
-fresh Shopify/Admin source-of-truth data.
-
 ## Customer Profile order status wording (2026-08-11)
 
 Customer-facing ready-stock order status wording was updated across both active
