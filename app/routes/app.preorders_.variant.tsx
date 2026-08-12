@@ -37,7 +37,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
     refresh: shouldRefresh,
     cacheOnly: !shouldRefresh,
   });
-  await ensureProductPreorderMetafieldDefinitions(admin);
+  if (shouldRefresh) {
+    await ensureProductPreorderMetafieldDefinitions(admin);
+  }
   const variant = variants.find(
     (item) => item.id === productId || item.variantIds.includes(productId),
   );

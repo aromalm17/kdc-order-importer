@@ -12,27 +12,12 @@ import { handleNewImport } from "../services/new-import.server";
 import { ensureProductPreorderMetafieldDefinitions } from "../services/shopify-order-manager.server";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  const { admin, session } = await authenticate.admin(request);
-  try {
-    const productMetafields =
-      await ensureProductPreorderMetafieldDefinitions(admin);
-    return {
-      shop: session.shop,
-      ...shopSummary(session.shop),
-      productMetafields,
-      productMetafieldSetupError: null,
-    };
-  } catch (error) {
-    return {
-      shop: session.shop,
-      ...shopSummary(session.shop),
-      productMetafields: [],
-      productMetafieldSetupError:
-        error instanceof Error
-          ? error.message
-          : "Product metafield setup failed.",
-    };
-  }
+  const { session } = await authenticate.admin(request);
+  return {
+    shop: session.shop,
+    ...shopSummary(session.shop),
+    productMetafields: [],
+  };
 }
 
 export async function action({ request }: ActionFunctionArgs) {
@@ -64,12 +49,6 @@ export default function Dashboard() {
         <s-banner tone="success">
           Product metafields are ready. Refresh Shopify product create/edit to
           see Preorder Price, Preorder ETA, and Preorder Closing.
-        </s-banner>
-      ) : null}
-      {data.productMetafieldSetupError ? (
-        <s-banner tone="critical">
-          Product metafield setup needs attention:{" "}
-          {data.productMetafieldSetupError}
         </s-banner>
       ) : null}
       <s-section heading="Database-free import">
@@ -113,7 +92,7 @@ export default function Dashboard() {
                 (field) =>
                   `${field.name} ${field.pinned ? "pinned" : "not pinned"}`,
               )
-              .join(", ") || "not ready"}
+              .join(", ") || "click Ensure product metafields to check"}
           </s-text>
           <Form method="post">
             <input

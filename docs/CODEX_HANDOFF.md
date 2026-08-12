@@ -19,6 +19,20 @@ latest Shopify source-of-truth values.
 Validation: focused `tests/shopify-order-manager.test.ts`, full `npm test`
 (96 tests), `npm run typecheck`, and `npm run build` passed.
 
+Follow-up: removed the remaining automatic Shopify/Admin touches from page
+load. The embedded app shell no longer calls product metafield setup on every
+route load, the dashboard no longer checks product metafields on load, and Bulk
+Preorders / variant edit loaders only ensure metafields when opened with the
+explicit `refresh=1` flow. Manual actions remain:
+
+- `/app/preorders` primary button:
+  `Clear browser data and fetch from database`
+- Dashboard `Ensure product metafields`
+- Bulk preorder product Save / Update
+
+Validation repeated: full `npm test` (96 tests), `npm run typecheck`, and
+`npm run build` passed.
+
 ## Customer Profile order status wording (2026-08-11)
 
 Customer-facing ready-stock order status wording was updated across both active
