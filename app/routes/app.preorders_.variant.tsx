@@ -31,12 +31,7 @@ function requiredProductId(request: Request) {
 export async function loader({ request }: LoaderFunctionArgs) {
   const { admin, session } = await authenticate.admin(request);
   const productId = requiredProductId(request);
-  const url = new URL(request.url);
-  const shouldRefresh = url.searchParams.get("refresh") === "1";
-  const variants = await listBulkPreorderVariants(admin, session.shop, {
-    refresh: shouldRefresh,
-    cacheOnly: !shouldRefresh,
-  });
+  const variants = await listBulkPreorderVariants(admin, session.shop);
   await ensureProductPreorderMetafieldDefinitions(admin);
   const variant = variants.find(
     (item) => item.id === productId || item.variantIds.includes(productId),
@@ -46,6 +41,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       status: 404,
     });
   }
+  const url = new URL(request.url);
   return { variant, saved: url.searchParams.get("saved") };
 }
 
@@ -55,9 +51,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const form = await request.formData();
 
   try {
-    const variants = await listBulkPreorderVariants(admin, session.shop, {
-      refresh: true,
-    });
+    const variants = await listBulkPreorderVariants(admin, session.shop);
     const variant = variants.find(
       (item) => item.id === productId || item.variantIds.includes(productId),
     );
@@ -75,7 +69,7 @@ export async function action({ request }: ActionFunctionArgs) {
     });
     invalidateBulkPreorderCache(session.shop);
     return redirect(
-      `/app/preorders/variant?id=${encodeURIComponent(variant.id)}&saved=${updated}&refresh=1`,
+      `/app/preorders/variant?id=${encodeURIComponent(variant.id)}&saved=${updated}`,
     );
   } catch (error) {
     return Response.json(

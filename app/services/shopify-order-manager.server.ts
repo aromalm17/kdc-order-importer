@@ -434,14 +434,11 @@ export function invalidateBulkPreorderCache(shop: string) {
 export async function listBulkPreorderVariants(
   admin: AdminApiContext,
   shop: string,
-  options?: { refresh?: boolean; cacheOnly?: boolean },
+  options?: { refresh?: boolean },
 ) {
   const cached = bulkPreorderCache.get(shop);
   if (!options?.refresh && cached && cached.expiresAt > Date.now()) {
     return cached.variants;
-  }
-  if (options?.cacheOnly) {
-    return cached?.variants ?? [];
   }
 
   const grouped = new Map<

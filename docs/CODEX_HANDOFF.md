@@ -1,58 +1,6 @@
 # Codex handoff: KDC Order Importer
 
-Last refreshed: 2026-08-12
-
-## Bulk Preorders explicit database refresh (2026-08-12)
-
-Bulk Preorders no longer syncs Shopify/Admin data automatically when the list
-or variant edit page loads. Normal page loads use the app's in-memory cached
-data only. If no cache exists yet, the list shows zero cached products instead
-of silently fetching from Shopify.
-
-The primary action on `/app/preorders` is now
-`Clear browser data and fetch from database`. It adds `refresh=1`, clears the
-stale view by forcing a fresh Shopify/Admin read, and repopulates the cache.
-Saving a preorder product also forces a refresh before matching the product and
-redirects back with `refresh=1` after saving, so the saved page reload reads the
-latest Shopify source-of-truth values.
-
-Validation: focused `tests/shopify-order-manager.test.ts`, full `npm test`
-(96 tests), `npm run typecheck`, and `npm run build` passed.
-
-## Customer Profile order status wording (2026-08-11)
-
-Customer-facing ready-stock order status wording was updated across both active
-surfaces:
-
-- Theme account dashboard snippets now show unfulfilled ready-stock orders as
-  `Pending to dispatch` and fulfilled orders as `Dispatched`.
-- Theme order details show a shipment card with `Shipment method`, `Tracking
-  number`, and a tracking link when Shopify fulfillment tracking data exists.
-- Customer Profile full-page extension uses the same labels and tracking
-  wording in its order cards.
-
-Deployments:
-
-- Live theme: `Kerala Diecast Cars Version 1.0.197`, theme ID
-  `156831416510`.
-- Customer Profile app version: `customer-profile-7`.
-- Shopify version:
-  `https://dev.shopify.com/dashboard/227614855/apps/402981945345/versions/1084448342017`
-
-Validation:
-
-- Customer Profile `shopify app build` passed.
-- `shopify app deploy --allow-updates` released the new app version to users.
-- Theme Check still reports the documented pre-existing
-  `templates/gift_card.liquid` missing translation error plus unrelated
-  warnings.
-
-Follow-up: active preorder status wording was updated to
-`Awaiting Stock Arrival` in both the theme account dashboard and Customer
-Profile full-page extension. Live theme is now
-`Kerala Diecast Cars Version 1.0.198`, theme ID `156831547582`. Customer
-Profile app version `customer-profile-8` was released to users:
-`https://dev.shopify.com/dashboard/227614855/apps/402981945345/versions/1084453126145`.
+Last refreshed: 2026-08-04
 
 ## Bulk preorder closing field deployment (2026-08-04)
 

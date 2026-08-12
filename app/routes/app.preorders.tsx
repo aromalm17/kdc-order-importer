@@ -19,10 +19,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
     requestedStatus === "configured" || requestedStatus === "all"
       ? requestedStatus
       : "needs-setup";
-  const shouldRefresh = url.searchParams.get("refresh") === "1";
   const variants = await listBulkPreorderVariants(admin, session.shop, {
-    refresh: shouldRefresh,
-    cacheOnly: !shouldRefresh,
+    refresh: url.searchParams.get("refresh") === "1",
   });
   await ensureProductPreorderMetafieldDefinitions(admin);
   const needle = search.toLowerCase();
@@ -102,7 +100,7 @@ export default function BulkPreorders() {
   return (
     <s-page heading="Bulk preorders">
       <s-button slot="primary-action" href={data.refreshHref}>
-        Clear browser data and fetch from database
+        Refresh products
       </s-button>
 
       <s-section>
@@ -111,8 +109,7 @@ export default function BulkPreorders() {
             <h2>Products across Shopify orders</h2>
             <p>
               Products with preorder tag, price, and ETA are hidden from Needs
-              setup and listed under Configured. Page load uses saved app data;
-              click the fetch button when you want a fresh Shopify database sync.
+              setup and listed under Configured.
             </p>
           </div>
           <Form method="get" className="kdc-managed-search">
