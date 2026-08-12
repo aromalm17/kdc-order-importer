@@ -101,9 +101,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function BulkPreorders() {
   const data = useLoaderData<typeof loader>();
 
+  function clearBrowserStorageAndRefresh() {
+    if (typeof window !== "undefined") {
+      window.localStorage.clear();
+      window.sessionStorage.clear();
+      window.location.assign(data.refreshHref);
+    }
+  }
+
   return (
     <s-page heading="Bulk preorders">
-      <s-button slot="primary-action" href={data.refreshHref}>
+      <s-button
+        slot="primary-action"
+        onClick={clearBrowserStorageAndRefresh}
+      >
         Clear browser data and fetch from database
       </s-button>
 
