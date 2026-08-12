@@ -228,6 +228,74 @@ describe("Shopify order manager", () => {
     ]);
   });
 
+  it("does not fetch bulk preorder products when cache-only data is missing", async () => {
+    const graphql = vi.fn();
+
+    const variants = await listBulkPreorderVariants(
+      { graphql } as never,
+      "bulk-cache-empty.myshopify.com",
+      { cacheOnly: true },
+    );
+
+    expect(variants).toEqual([]);
+    expect(graphql).not.toHaveBeenCalled();
+  });
+
+  it("serves cached bulk preorder products until an explicit refresh", async () => {
+    const product = {
+      id: "gid://shopify/Product/500",
+      title: "Cached preorder model",
+      handle: "cached-preorder-model",
+      tags: ["Preorder"],
+      featuredImage: null,
+      preorderEta: { value: "September" },
+      preorderPendingPrice: { value: "999.00" },
+      preorderClosing: null,
+    };
+    const variant = {
+      id: "gid://shopify/ProductVariant/600",
+      title: "Default Title",
+      sku: "KDC-600",
+      product,
+    };
+    const graphql = vi.fn().mockResolvedValue(
+      response({
+        orders: {
+          nodes: [
+            {
+              id: "gid://shopify/Order/600",
+              name: "#1600",
+              createdAt: "2026-08-12T10:00:00Z",
+              email: "buyer@example.com",
+              customer: { displayName: "Buyer" },
+              preorderEta: null,
+              preorderPendingPrice: null,
+              lineItems: {
+                nodes: [{ currentQuantity: 1, variant }],
+              },
+            },
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      }),
+    );
+
+    const first = await listBulkPreorderVariants(
+      { graphql } as never,
+      "bulk-cache-hit.myshopify.com",
+      { refresh: true },
+    );
+    const second = await listBulkPreorderVariants(
+      { graphql } as never,
+      "bulk-cache-hit.myshopify.com",
+      { cacheOnly: true },
+    );
+
+    expect(first[0].title).toBe("Cached preorder model");
+    expect(second[0].title).toBe("Cached preorder model");
+    expect(graphql).toHaveBeenCalledTimes(1);
+  });
+
   it("updates order contact and translates countryCodeV2 to MailingAddressInput", async () => {
     const graphql = vi.fn().mockResolvedValue(
       response({
